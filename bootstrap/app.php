@@ -1,5 +1,9 @@
 <?php
 
+use App\Http\Middleware\ApplyPlatformSettings;
+use App\Http\Middleware\EnforceMaintenanceMode;
+use App\Http\Middleware\EnsureAccountActive;
+use App\Http\Middleware\EnsureRole;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -12,8 +16,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->alias(['role' => \App\Http\Middleware\EnsureRole::class]);
-        $middleware->web(append: [\App\Http\Middleware\EnsureAccountActive::class]);
+        $middleware->alias(['role' => EnsureRole::class]);
+        $middleware->web(
+            prepend: [ApplyPlatformSettings::class],
+            append: [EnsureAccountActive::class, EnforceMaintenanceMode::class],
+        );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

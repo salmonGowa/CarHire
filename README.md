@@ -95,7 +95,16 @@ decides their dashboard; dealer staff belong to a dealership via `dealer_id`.
 | `GET/POST/PUT/DELETE /api/promotions`, `GET /api/promotions/check` | dealer staff; check is open to customers | code is per dealer, applied before VAT |
 | `GET /api/reviews`, `PUT /api/bookings/{id}/reply` | dealer staff | ratings + written reviews from completed trips |
 | `GET /api/dealer-customers` | dealer staff | customers derived from the dealer's bookings |
-
+| `/api/admin/dealers` (+ `/{id}/staff`), `/api/admin/clients` (+ `/{id}/kyc`, `/{id}/flag`), `/api/admin/staff` | super admins | creating a login returns a one-time temporary password |
+| `PATCH /api/admin/users/{id}/status` | super admins | suspend/reinstate any account; suspended users are signed out |
+| `GET /api/admin/audit-logs` (+ `/export` CSV) | super admins | sign-ins, account, booking, payment and payout events |
+| `/api/admin/compliance` (+ `/{id}/file`, `/{id}/review`) | super admins | request, upload, approve/reject dealer documents; files on the private disk |
+| `/api/dealer-documents` (+ `/{id}/file`) | dealer staff | the dealer's own requested documents and uploads |
+| `/api/support-tickets` (+ `/{id}/messages`) | everyone signed in | admins see all tickets and can add internal notes; dealers see their dealership's; others see their own |
+| `/api/admin/subscriptions`, `/api/admin/subscription-plans/{id}`, `/api/admin/dealers/{id}/plan`, `/api/admin/subscription-charges/*` | super admins | plan prices and limits, monthly charges, recording payments |
+| `GET /api/subscription` | dealer staff | the dealer's plan, usage and charges |
+| `GET/PUT /api/admin/settings` | super admins | runtime platform settings (see below); every change is audited |
+| `GET /api/admin/overview`, `/api/admin/reports?period=7d\|30d\|6m\|ytd\|all`, `/api/admin/integrations` | super admins | dashboard, analytics and live system checks |
 | `/api/hr/*` (employees, attendance, leave, payroll-runs, payslips, documents, reports, summary) | HR managers and super admins | DriveFleet's own staff; documents on the private disk |
 
 Payroll uses Kenyan statutory rates from `config/payroll.php` (PAYE bands,
@@ -106,6 +115,21 @@ Money rules: booking totals include 16% VAT; the platform fee
 (`PLATFORM_COMMISSION_RATE`, default 10%) is charged on the pre-VAT amount and
 stored on each payment. Online collection (M-PESA STK push, card gateway) and
 KRA eTIMS submission are not connected yet.
+
+Dealer subscriptions are billed on the 1st by `php artisan drivefleet:bill-subscriptions`
+(scheduled monthly, so run `php artisan schedule:work` or a cron entry for
+`schedule:run` in production). Charges fall due after `SUBSCRIPTION_DUE_DAYS`
+(default 7); dealers pay outside the app and an admin records the payment.
+Plan vehicle and staff limits are enforced when vehicles or staff logins are added.
+
+System Settings (stored in the `settings` table, defaults in `App\Support\Settings`)
+take effect immediately: platform commission (new payments only), subscription
+payment terms, customer booking rules (minimum/maximum length, cancellation
+cut-off, minimum driver age when a date of birth is on file; dealer staff are
+exempt), customer/dealer sign-up, maintenance mode (everyone but super admins is
+locked out of the API and sign-in), sign-in attempts per minute, idle sign-out
+time and support contacts. VAT stays in `config/drivefleet.php`. The app time
+zone is UTC; set it to `Africa/Nairobi` in `config/app.php` before going live.
 
 Seed demo data with `php artisan migrate --seed` (all demo passwords are
 `password`). Run the backend tests with `php artisan test`; they use the

@@ -11,9 +11,13 @@
     </head>
     <body>
         <div id="root"></div>
-        <script id="app-config" type="application/json">@json([
-            'user' => auth()->user()?->toFrontend(),
-            'showDemoAccounts' => app()->isLocal(),
-        ])</script>
+        @php
+            $appConfig = [
+                'user' => auth()->user()?->toFrontend(),
+                'showDemoAccounts' => app()->isLocal(),
+                'platform' => \App\Support\Settings::public(),
+            ];
+        @endphp
+        <script id="app-config" type="application/json">@json($appConfig)</script>
     </body>
 </html>

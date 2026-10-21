@@ -109,6 +109,10 @@ class DealerAdminController extends Controller
             'phone' => ['nullable', 'string', 'max:30'],
             'job_title' => ['required', 'string', 'max:80'],
         ]);
+        $limit = $dealer->plan?->staff_limit;
+        if ($limit !== null && $dealer->staff()->count() >= $limit) {
+            abort(422, "The {$dealer->plan->name} plan allows {$limit} staff logins. Upgrade the plan to add more.");
+        }
         [$user, $password] = $this->createAccount(UserRole::Dealer, [...$data, 'dealer_id' => $dealer->id, 'company' => $dealer->name]);
         AuditLog::record('dealer.staff_added', "Added {$user->email} to {$dealer->name}", $dealer);
 

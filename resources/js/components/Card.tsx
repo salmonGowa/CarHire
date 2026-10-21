@@ -21,7 +21,7 @@ export function CardHeader({ title, action }: { title: ReactNode; action?: React
 
 export function Table({ heads, children }: { heads: string[]; children?: ReactNode }) {
   return (
-    <div className="w-full">
+    <div className="w-full overflow-x-auto">
       <table className="w-full border-collapse">
         <thead className="hidden sm:table-header-group">
           <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800/80">

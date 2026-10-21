@@ -2,6 +2,7 @@ import { useState, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth, type RegisterInput } from "./AuthContext";
 import { ApiError } from "@/lib/api";
+import { appConfig } from "@/lib/appConfig";
 import { useTheme } from "./ThemeContext";
 import Input from "./Input";
 import Button from "./Button";
@@ -29,13 +30,17 @@ const ACCOUNT_TYPES: { id: RegisterInput["role"]; icon: typeof User; label: stri
   { id: "dealer",   icon: Store, label: "Car Dealer", desc: "I manage a car hire business and want to list vehicles" },
 ];
 
+// Admins can close sign-up per account type in System Settings.
+const { platform } = appConfig;
+const OPEN_TYPES = ACCOUNT_TYPES.filter((t) => (t.id === "dealer" ? platform.dealer_registration : platform.customer_registration) && !platform.maintenance_mode);
+
 export default function RegisterPage() {
   const { register, loading } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const [step, setStep]     = useState(0);
-  const [type, setType]     = useState<RegisterInput["role"]>("customer");
+  const [type, setType]     = useState<RegisterInput["role"]>(OPEN_TYPES[0]?.id ?? "customer");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [form, setForm] = useState({
     firstName: "", lastName: "", email: "", phone: "",
@@ -153,7 +158,12 @@ export default function RegisterPage() {
         {step === 0 && (
           <div className="space-y-4 animate-in slide-in-from-right-4 fade-in duration-300">
             <p className={`text-[13px] font-semibold uppercase tracking-wider mb-2 ${isDark ? "text-slate-400" : "text-slate-500"}`}>Select your path</p>
-            {ACCOUNT_TYPES.map((t) => (
+            {OPEN_TYPES.length === 0 && (
+              <p role="status" className={`p-4 rounded-2xl border text-sm ${isDark ? "border-amber-500/30 bg-amber-500/10 text-amber-300" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+                {platform.maintenance_mode ? platform.maintenance_message : "Sign-up is closed at the moment. Please check back later."}
+              </p>
+            )}
+            {OPEN_TYPES.map((t) => (
               <button
                 key={t.id}
                 type="button"
@@ -186,7 +196,7 @@ export default function RegisterPage() {
                 </div>
               </button>
             ))}
-            <Button fullWidth size="lg" onClick={next} className="mt-6 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-500/25 rounded-xl font-semibold flex items-center justify-center gap-2">
+            <Button fullWidth size="lg" onClick={next} disabled={OPEN_TYPES.length === 0} className="mt-6 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-500/25 rounded-xl font-semibold flex items-center justify-center gap-2">
               Continue <ArrowRight className="w-4 h-4" />
             </Button>
           </div>

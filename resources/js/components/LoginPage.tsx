@@ -243,6 +243,12 @@ export default function LoginPage() {
             </button>
           </div>
 
+          {appConfig.platform.maintenance_mode && (
+            <p role="status" className={`mb-5 p-4 rounded-xl border text-sm ${isDark ? "border-amber-500/30 bg-amber-500/10 text-amber-300" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+              {appConfig.platform.maintenance_message} Only DriveFleet administrators can sign in right now.
+            </p>
+          )}
+
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-4">

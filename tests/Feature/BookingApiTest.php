@@ -30,7 +30,7 @@ class BookingApiTest extends TestCase
         $vehicle = Vehicle::factory()->create(['daily_rate' => 5000]);
 
         $this->actingAs($customer)->postJson('/api/bookings', [
-            'vehicle_id' => $vehicle->id, 'pickup_location' => 'Nairobi CBD', ...$this->dates(1, 4),
+            'vehicle_id' => $vehicle->id, 'pickup_location' => 'Nairobi CBD', ...$this->dates(2, 5),
             'customer_name' => 'Someone Else', // ignored for customers
         ])
             ->assertCreated()

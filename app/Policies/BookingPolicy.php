@@ -5,6 +5,7 @@ namespace App\Policies;
 use App\Enums\BookingStatus;
 use App\Models\Booking;
 use App\Models\User;
+use App\Support\Settings;
 
 class BookingPolicy
 {
@@ -27,7 +28,10 @@ class BookingPolicy
             return true;
         }
 
-        return $booking->customer_id === $user->id && $next === BookingStatus::Cancelled;
+        // Customers cancel themselves only up to the cut-off before pickup; after that the dealer decides.
+        return $booking->customer_id === $user->id
+            && $next === BookingStatus::Cancelled
+            && now()->addHours((int) Settings::get('free_cancellation_hours'))->lte($booking->pickup_at);
     }
 
     public function rate(User $user, Booking $booking): bool

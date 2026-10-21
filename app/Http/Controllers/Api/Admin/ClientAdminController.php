@@ -68,7 +68,7 @@ class ClientAdminController extends Controller
         $bookings = Booking::with(['vehicle', 'dealer'])->where('customer_id', $client->id)->orderByDesc('pickup_at')->limit(50)->get();
         $payments = Payment::with('booking')->where('customer_id', $client->id)->orderByDesc('paid_at')->limit(50)->get();
         $activity = AuditLog::where(fn ($q) => $q->where('subject_type', $client->getMorphClass())->where('subject_id', $client->id))
-            ->orWhere('user_id', $client->id)->latest('created_at')->limit(30)->get();
+            ->orWhere('user_id', $client->id)->latest('created_at')->latest('id')->limit(30)->get();
 
         return response()->json(['data' => [
             ...$this->present($client),

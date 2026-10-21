@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Payout;
+use App\Support\Settings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -58,7 +59,7 @@ class FinanceController extends Controller
         $unsettled = Payment::query()->tap($scope)->where('status', PaymentStatus::Completed)->whereNull('payout_id')->get(['amount', 'commission', 'method']);
 
         return response()->json([
-            'commission_rate' => (float) config('drivefleet.commission_rate'),
+            'commission_rate' => (float) Settings::get('commission_rate'),
             'vat_rate' => (float) config('drivefleet.vat_rate'),
             'month_to_date' => $sum($payments->filter(fn ($p) => $p->paid_at->gte(now()->startOfMonth()))),
             'previous_month' => $sum(Payment::query()->tap($scope)->where('status', PaymentStatus::Completed)

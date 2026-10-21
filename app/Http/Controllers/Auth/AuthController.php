@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Support\Settings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -51,6 +52,12 @@ class AuthController extends Controller
             ]);
         }
 
+        if (Settings::get('maintenance_mode') && ! $request->user()->isSuperAdmin()) {
+            Auth::guard('web')->logout();
+
+            abort(503, (string) Settings::get('maintenance_message'));
+        }
+
         $request->session()->regenerate();
         $request->user()->forceFill(['last_login_at' => now()])->save();
 
@@ -70,6 +77,12 @@ class AuthController extends Controller
             'role' => ['required', Rule::enum(UserRole::class)->only(UserRole::selfRegisterable())],
             'password' => ['required', 'confirmed', Password::min(8)],
         ]);
+        abort_if(Settings::get('maintenance_mode'), 503, (string) Settings::get('maintenance_message'));
+        if (! Settings::get("{$data['role']}_registration")) {
+            throw ValidationException::withMessages(['role' => $data['role'] === UserRole::Dealer->value
+                ? 'Dealer sign-up is closed. Contact DriveFleet to join as a dealer.'
+                : 'Sign-up is closed at the moment. Please try again later.']);
+        }
 
         $user = User::create($data);
 

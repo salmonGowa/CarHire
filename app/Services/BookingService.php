@@ -9,6 +9,8 @@ use App\Models\Booking;
 use App\Models\Promotion;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Support\Settings;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -28,6 +30,9 @@ class BookingService
         $pickupAt = Carbon::parse($data['pickup_at']);
         $returnAt = Carbon::parse($data['return_at']);
         $staff = $actor->isDealer() || $actor->isSuperAdmin();
+        if (! $staff) {
+            $this->checkCustomerRules($actor, $pickupAt, $returnAt);
+        }
 
         return DB::transaction(function () use ($actor, $data, $pickupAt, $returnAt, $staff) {
             /** @var Vehicle $vehicle */
@@ -107,6 +112,28 @@ class BookingService
         }
 
         return $promotion;
+    }
+
+    /**
+     * Platform booking rules from System Settings. They bind customers;
+     * dealer staff can still book outside them (long-term hires, short hops).
+     */
+    private function checkCustomerRules(User $customer, CarbonInterface $pickupAt, CarbonInterface $returnAt): void
+    {
+        $minHours = (int) Settings::get('min_booking_hours');
+        $maxDays = (int) Settings::get('max_booking_days');
+        $minAge = (int) Settings::get('min_driver_age');
+
+        if ($pickupAt->diffInMinutes($returnAt) < $minHours * 60) {
+            throw ValidationException::withMessages(['return_at' => "Bookings must be at least {$minHours} hours long."]);
+        }
+        if ($pickupAt->diffInMinutes($returnAt) > $maxDays * 24 * 60) {
+            throw ValidationException::withMessages(['return_at' => "Bookings can be at most {$maxDays} days. Contact the dealer for longer hires."]);
+        }
+        // Only checked when we know their date of birth.
+        if ($customer->date_of_birth && $customer->date_of_birth->diffInYears($pickupAt) < $minAge) {
+            throw ValidationException::withMessages(['vehicle_id' => "Drivers must be at least {$minAge} years old on the pickup date."]);
+        }
     }
 
     /**

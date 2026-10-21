@@ -1,71 +1,87 @@
-import React, { useState } from "react";
 import { type Variants, motion } from "framer-motion";
-import Button from "../Button";
-import { 
-  Plug, Smartphone, CreditCard, MapPin, MessageSquare, 
-  Settings2, CheckCircle2, AlertCircle, RefreshCw
+import {
+  AlertCircle, CheckCircle2, Clock, CreditCard, Database, HardDrive, Landmark, Mail, MapPin, MessageSquare, Navigation, PlugZap, RefreshCw, Smartphone, XCircle,
 } from "lucide-react";
+import LoadState from "../LoadState";
+import { useApi } from "@/lib/useApi";
 
-// --- Mock Integrations ---
-const INTEGRATIONS = [
-  { id: 1, name: "M-PESA Daraja API", category: "Payments", status: "Connected", icon: Smartphone, desc: "C2B Paybill and B2C Remittances.", latency: "124ms" },
-  { id: 2, name: "Stripe", category: "Payments", status: "Connected", icon: CreditCard, desc: "Global credit card processing.", latency: "89ms" },
-  { id: 3, name: "Twilio SMS", category: "Communications", status: "Connected", icon: MessageSquare, desc: "OTP and notification delivery.", latency: "45ms" },
-  { id: 4, name: "TrackMe GPS", category: "Telemetry", status: "Degraded", icon: MapPin, desc: "Live vehicle location tracking.", latency: "1200ms" },
-];
+interface Integration {
+  id: string;
+  name: string;
+  category: string;
+  status: "connected" | "configured" | "attention" | "not_connected" | "error";
+  detail: string;
+  latency_ms: number | null;
+}
+
+const ICONS: Record<string, typeof Database> = {
+  database: Database, storage: HardDrive, scheduler: Clock, mail: Mail, maps: MapPin,
+  mpesa: Smartphone, card: CreditCard, sms: MessageSquare, etims: Landmark, gps: Navigation,
+};
+const STATUS: Record<Integration["status"], { label: string; style: string; icon: typeof CheckCircle2 }> = {
+  connected: { label: "Healthy", style: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400", icon: CheckCircle2 },
+  configured: { label: "Configured", style: "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400", icon: CheckCircle2 },
+  attention: { label: "Needs attention", style: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400", icon: AlertCircle },
+  not_connected: { label: "Not connected", style: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400", icon: PlugZap },
+  error: { label: "Error", style: "bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400", icon: XCircle },
+};
 
 const itemVariants: Variants = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
 
 export default function SuperAdminIntegrations() {
-  const [toggles, setToggles] = useState<Record<number, boolean>>({ 1: true, 2: true, 3: true, 4: true });
+  const { data, loading, error, reload } = useApi<{ data: Integration[] }>("/api/admin/integrations");
+  const rows = data?.data ?? [];
+  const groups = [
+    { title: "Running the platform", sub: "Checked live each time this page loads", items: rows.filter((r) => ["database", "storage", "scheduler", "mail", "maps"].includes(r.id)) },
+    { title: "Third-party services", sub: "Not built yet. Staff record these by hand for now", items: rows.filter((r) => !["database", "storage", "scheduler", "mail", "maps"].includes(r.id)) },
+  ];
 
   return (
-    <motion.div variants={{ show: { transition: { staggerChildren: 0.1 } } }} initial="hidden" animate="show" className="space-y-6 pb-10">
-      
+    <motion.div variants={{ show: { transition: { staggerChildren: 0.08 } } }} initial="hidden" animate="show" className="space-y-8 pb-10">
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">System Integrations</h2>
-          <p className="text-sm text-slate-500 mt-1">Manage 3rd-party APIs, webhooks, and external services.</p>
+          <p className="text-sm text-slate-500 mt-1">What DriveFleet is actually connected to, and what still needs building.</p>
         </div>
+        <button onClick={reload} className="flex items-center gap-2 h-10 px-4 rounded-lg border border-slate-200 dark:border-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> Re-check
+        </button>
       </motion.div>
 
-      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {INTEGRATIONS.map((intg) => (
-          <div key={intg.id} className="p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0B1120] shadow-sm flex flex-col gap-4 group hover:border-blue-500/50 transition-colors">
-            
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-4">
-                <div className={`p-3.5 rounded-2xl ${intg.status === 'Connected' ? 'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400' : 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400'}`}>
-                  <intg.icon className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-black text-slate-900 dark:text-white">{intg.name}</h3>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{intg.category}</span>
-                </div>
-              </div>
-              {/* Custom Toggle Switch */}
-              <div onClick={() => setToggles({...toggles, [intg.id]: !toggles[intg.id]})} className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-300 ${toggles[intg.id] ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'}`}>
-                <motion.span animate={{ x: toggles[intg.id] ? 22 : 2 }} className="inline-block h-5 w-5 rounded-full bg-white shadow-sm" />
-              </div>
+      <LoadState loading={loading && !data} error={error} onRetry={reload}>
+        {groups.map((g) => (
+          <motion.section key={g.title} variants={itemVariants} className="space-y-4">
+            <div>
+              <h3 className="text-lg font-black text-slate-900 dark:text-white">{g.title}</h3>
+              <p className="text-xs text-slate-500">{g.sub}</p>
             </div>
-
-            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{intg.desc}</p>
-
-            <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800/60 mt-2">
-              <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest">
-                <span className={`flex items-center gap-1 ${intg.status === 'Connected' ? 'text-emerald-500' : 'text-amber-500'}`}>
-                  {intg.status === 'Connected' ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
-                  {intg.status}
-                </span>
-                <span className="text-slate-400 border-l border-slate-200 dark:border-slate-700 pl-3">Latency: {intg.latency}</span>
-              </div>
-              <button className="p-2 text-slate-400 hover:text-blue-600 bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-xl transition-colors">
-                <Settings2 className="w-4 h-4" />
-              </button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {g.items.map((i) => {
+                const Icon = ICONS[i.id] ?? PlugZap;
+                const s = STATUS[i.status];
+                return (
+                  <div key={i.id} className="p-5 rounded-[1.5rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0B1120] shadow-sm flex gap-4">
+                    <div className={`p-3 h-fit rounded-2xl ${s.style}`}><Icon className="w-5 h-5" /></div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2 flex-wrap">
+                        <div>
+                          <p className="font-black text-slate-900 dark:text-white">{i.name}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{i.category}</p>
+                        </div>
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${s.style}`}>
+                          <s.icon className="w-3 h-3" /> {s.label}
+                        </span>
+                      </div>
+                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">{i.detail}</p>
+                      {i.latency_ms !== null && <p className="text-[10px] font-mono text-slate-400 mt-1">Responded in {i.latency_ms} ms</p>}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          </div>
+          </motion.section>
         ))}
-      </motion.div>
+      </LoadState>
     </motion.div>
   );
 }

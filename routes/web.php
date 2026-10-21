@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AgreementController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\DealerCustomerController;
+use App\Http\Controllers\Api\DealerDocumentController;
 use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\FinanceController;
 use App\Http\Controllers\Api\Hr;
@@ -16,6 +17,7 @@ use App\Http\Controllers\Api\PromotionController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\SavedVehicleController;
 use App\Http\Controllers\Api\StatsController;
+use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Auth\AuthController;
 use Illuminate\Support\Facades\Route;
@@ -82,6 +84,22 @@ Route::prefix('api')->middleware('auth')->group(function () {
     Route::put('bookings/{booking}/agreement', [AgreementController::class, 'update']);
     Route::post('bookings/{booking}/agreement/sign', [AgreementController::class, 'sign']);
 
+    // Support tickets: everyone signed in; visibility is scoped in the controller.
+    Route::get('support-tickets', [SupportTicketController::class, 'index']);
+    Route::post('support-tickets', [SupportTicketController::class, 'store']);
+    Route::get('support-tickets/{ticket}', [SupportTicketController::class, 'show']);
+    Route::post('support-tickets/{ticket}/messages', [SupportTicketController::class, 'reply']);
+    Route::patch('support-tickets/{ticket}', [SupportTicketController::class, 'update']);
+
+    // The dealer's own account: plan, charges and compliance documents.
+    Route::middleware('role:dealer')->group(function () {
+        Route::get('subscription', [Admin\SubscriptionController::class, 'mine']);
+        Route::get('dealer-documents', [DealerDocumentController::class, 'index']);
+        Route::post('dealer-documents', [DealerDocumentController::class, 'store']);
+        Route::post('dealer-documents/{document}/file', [DealerDocumentController::class, 'upload']);
+        Route::get('dealer-documents/{document}/file', [DealerDocumentController::class, 'download']);
+    });
+
     // HR: DriveFleet's own employees. HR managers and super admins only.
     Route::prefix('hr')->middleware('role:hr,superadmin')->group(function () {
         Route::get('summary', Hr\HrSummaryController::class);
@@ -129,6 +147,24 @@ Route::prefix('api')->middleware('auth')->group(function () {
         Route::post('staff', [Admin\StaffAdminController::class, 'store']);
         Route::patch('users/{user}/status', Admin\AccountStatusController::class);
         Route::get('audit-logs', [Admin\AuditLogController::class, 'index']);
+        Route::get('audit-logs/export', [Admin\AuditLogController::class, 'export']);
+        Route::get('compliance', [Admin\ComplianceController::class, 'index']);
+        Route::post('compliance', [Admin\ComplianceController::class, 'store']);
+        Route::post('compliance/{document}/file', [Admin\ComplianceController::class, 'upload']);
+        Route::get('compliance/{document}/file', [Admin\ComplianceController::class, 'download']);
+        Route::post('compliance/{document}/review', [Admin\ComplianceController::class, 'review']);
+        Route::delete('compliance/{document}', [Admin\ComplianceController::class, 'destroy']);
+        Route::get('overview', Admin\OverviewController::class);
+        Route::get('reports', Admin\ReportsController::class);
+        Route::get('integrations', Admin\IntegrationsController::class);
+        Route::get('settings', [Admin\SettingsController::class, 'show']);
+        Route::put('settings', [Admin\SettingsController::class, 'update']);
+        Route::get('subscriptions', [Admin\SubscriptionController::class, 'index']);
+        Route::put('subscription-plans/{plan}', [Admin\SubscriptionController::class, 'updatePlan']);
+        Route::put('dealers/{dealer}/plan', [Admin\SubscriptionController::class, 'assign']);
+        Route::post('subscription-charges/issue', [Admin\SubscriptionController::class, 'issue']);
+        Route::post('subscription-charges/{charge}/pay', [Admin\SubscriptionController::class, 'pay']);
+        Route::post('subscription-charges/{charge}/void', [Admin\SubscriptionController::class, 'void']);
     });
 
     Route::middleware('role:superadmin')->group(function () {

@@ -282,3 +282,98 @@ export interface Agreement {
   total: number;
   editable: boolean;
 }
+
+// --- Platform administration ---------------------------------------------
+
+export interface AdminDealer {
+  id: number;
+  reference: string;
+  name: string;
+  city: string;
+  county: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  status: "active" | "suspended" | "pending";
+  tier: "silver" | "gold" | "platinum";
+  license_no: string | null;
+  tax_pin: string | null;
+  notes: string | null;
+  owner_name: string | null;
+  owner_phone: string | null;
+  owner_email: string | null;
+  owner_national_id: string | null;
+  manager_name: string | null;
+  manager_phone: string | null;
+  manager_email: string | null;
+  joined: string;
+  vehicle_count: number;
+  staff_count: number;
+  active_rentals: number;
+  revenue_this_month: number;
+}
+
+export interface AccountSummary {
+  id: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  job_title: string | null;
+  role: string;
+  status: "active" | "suspended";
+  joined: string;
+  last_login_at: string | null;
+}
+
+export interface AdminDealerDetail extends AdminDealer {
+  fleet_breakdown: { type: string; count: number; rented: number }[];
+  staff: AccountSummary[];
+  completed_bookings: number;
+}
+
+export interface AdminClient {
+  id: number;
+  reference: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  alt_phone: string | null;
+  national_id: string | null;
+  kra_pin: string | null;
+  gender: string | null;
+  address: string | null;
+  county: string | null;
+  admin_notes: string | null;
+  date_of_birth: string | null;
+  joined: string;
+  last_login_at: string | null;
+  status: "Active" | "Suspended" | "Flagged";
+  flagged: boolean;
+  kyc: "Verified" | "Pending" | "Rejected";
+  kyc_reviewed_at: string | null;
+  kyc_reviewer: string | null;
+  kyc_note: string | null;
+  ltv: number;
+  tier: "Bronze" | "Silver" | "Gold" | "Platinum";
+  bookings_count: number;
+  completed_trips: number;
+  completion_rate: number | null;
+}
+
+export interface AdminClientDetail extends AdminClient {
+  bookings: { id: number; reference: string; status: BookingStatus; vehicle: string | null; dealer: string | null; pickup_at: string; total: number }[];
+  payments: { id: number; reference: string; amount: number; method: string; status: string; paid_at: string; booking_reference: string | null }[];
+  activity: { action: string; by: string; at: string }[];
+}
+
+export interface AuditEntry {
+  id: number;
+  reference: string;
+  at: string;
+  actor: string;
+  action: string;
+  description: string;
+  severity: "info" | "warning" | "critical";
+  ip_address: string | null;
+}

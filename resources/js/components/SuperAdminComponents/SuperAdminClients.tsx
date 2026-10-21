@@ -1,830 +1,515 @@
-import { useState, useMemo, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { type Variants, motion, AnimatePresence } from "framer-motion";
 import {
   Search, Users, CheckCircle2, ShieldAlert, Clock, CreditCard,
   UserPlus, ArrowLeft, Edit3, Trash2, Mail, Phone, MapPin, Calendar,
-  Car, Smartphone, Activity, Flag, ShieldCheck, XCircle, FileText,
-  Building2, ChevronRight, AlertCircle, Eye,
-  User
+  Car, Activity, Flag, ShieldCheck, XCircle, FileText, ChevronRight, AlertCircle,
 } from "lucide-react";
+import LoadState from "../LoadState";
+import BookingStatusPill from "../StatusPill";
+import TempPasswordNotice from "../TempPasswordNotice";
+import { api } from "@/lib/api";
+import { errorMessage, fieldErrors } from "@/lib/errors";
+import { useApi } from "@/lib/useApi";
+import { useDebounced } from "@/lib/useDebounced";
+import { PAYMENT_LABEL, dateTime, ksh, longDate } from "@/lib/format";
+import type { AdminClient, AdminClientDetail, ReceivedMethod } from "@/types/models";
 
-// ─── Seed Data ────────────────────────────────────────────────────────────────
-const INITIAL_CLIENTS = [
-  {
-    id: "USR-00412", name: "James Mwangi", email: "james@example.com",
-    phone: "+254 712 345 678", altPhone: "+254 700 111 222",
-    joined: "Jan 2023", dob: "1988-04-12", gender: "Male",
-    nationalId: "27834910", kraPin: "A001234567B",
-    address: "Westlands, Nairobi", county: "Nairobi",
-    ltv: 145000, bookings: 12, status: "Active", kyc: "Verified",
-    kycDate: "Feb 2023", kycReviewer: "Admin Grace",
-    kycDocs: ["National ID", "Selfie", "Proof of Address"],
-    tier: "Gold", creditScore: 87, notes: "VIP client. Preferred contact via phone.",
-    flagged: false,
-    bookingHistory: [
-      { id: "BK-1021", vehicle: "Toyota Prado – KCB 441Z", dealer: "Premier Auto", date: "Mar 2024", amount: 18500, status: "Completed" },
-      { id: "BK-1008", vehicle: "Nissan X-Trail – KDA 221B", dealer: "Swift Car Hire", date: "Jan 2024", amount: 14000, status: "Completed" },
-      { id: "BK-0992", vehicle: "Toyota Camry – KBZ 019F", dealer: "Premier Auto", date: "Nov 2023", amount: 12000, status: "Completed" },
-    ],
-    payments: [
-      { id: "PAY-881", amount: 18500, method: "M-Pesa", date: "Mar 2024", status: "Cleared" },
-      { id: "PAY-830", amount: 14000, method: "Card", date: "Jan 2024", status: "Cleared" },
-    ],
-    activityLog: [
-      { action: "KYC Verified", by: "Admin Grace", date: "Feb 2023" },
-      { action: "Account Created", by: "System", date: "Jan 2023" },
-    ],
-  },
-  {
-    id: "USR-00413", name: "Sarah Wanjiku", email: "sarah@example.com",
-    phone: "+254 722 999 888", altPhone: "",
-    joined: "Mar 2023", dob: "1995-09-22", gender: "Female",
-    nationalId: "35291047", kraPin: "A009876543C",
-    address: "Kilimani, Nairobi", county: "Nairobi",
-    ltv: 32000, bookings: 3, status: "Active", kyc: "Pending",
-    kycDate: null, kycReviewer: null,
-    kycDocs: ["National ID"],
-    tier: "Silver", creditScore: 62, notes: "",
-    flagged: false,
-    bookingHistory: [
-      { id: "BK-1034", vehicle: "Honda CR-V – KCD 880T", dealer: "Swift Car Hire", date: "Apr 2024", amount: 10500, status: "Active" },
-      { id: "BK-1019", vehicle: "Toyota Corolla – KBX 220L", dealer: "Swift Car Hire", date: "Feb 2024", amount: 8000, status: "Completed" },
-    ],
-    payments: [
-      { id: "PAY-901", amount: 10500, method: "M-Pesa", date: "Apr 2024", status: "Cleared" },
-    ],
-    activityLog: [
-      { action: "KYC Submitted", by: "User", date: "Mar 2023" },
-      { action: "Account Created", by: "System", date: "Mar 2023" },
-    ],
-  },
-  {
-    id: "USR-00414", name: "David Kipkorir", email: "david@example.com",
-    phone: "+254 733 444 555", altPhone: "",
-    joined: "Sep 2023", dob: "1990-01-30", gender: "Male",
-    nationalId: "29183746", kraPin: "",
-    address: "Nakuru Town, Nakuru", county: "Nakuru",
-    ltv: 0, bookings: 0, status: "Suspended", kyc: "Rejected",
-    kycDate: "Oct 2023", kycReviewer: "Admin Brian",
-    kycDocs: ["National ID"],
-    tier: "Bronze", creditScore: 20, notes: "KYC rejected — ID mismatch. Account suspended pending review.",
-    flagged: true,
-    bookingHistory: [],
-    payments: [],
-    activityLog: [
-      { action: "Account Suspended", by: "Admin Brian", date: "Oct 2023" },
-      { action: "KYC Rejected", by: "Admin Brian", date: "Oct 2023" },
-      { action: "KYC Submitted", by: "User", date: "Sep 2023" },
-      { action: "Account Created", by: "System", date: "Sep 2023" },
-    ],
-  },
-  {
-    id: "USR-00415", name: "Faith Njeri", email: "faith.njeri@example.com",
-    phone: "+254 700 123 456", altPhone: "+254 711 789 012",
-    joined: "Dec 2023", dob: "1993-07-15", gender: "Female",
-    nationalId: "41029384", kraPin: "A007654321D",
-    address: "Thika Road, Ruiru", county: "Kiambu",
-    ltv: 58000, bookings: 5, status: "Active", kyc: "Verified",
-    kycDate: "Jan 2024", kycReviewer: "Admin Grace",
-    kycDocs: ["National ID", "Selfie", "Utility Bill"],
-    tier: "Silver", creditScore: 74, notes: "",
-    flagged: false,
-    bookingHistory: [
-      { id: "BK-1044", vehicle: "Mazda CX-5 – KDC 110P", dealer: "Premier Auto", date: "May 2024", amount: 15000, status: "Active" },
-    ],
-    payments: [
-      { id: "PAY-922", amount: 15000, method: "Bank Transfer", date: "May 2024", status: "Cleared" },
-    ],
-    activityLog: [
-      { action: "KYC Verified", by: "Admin Grace", date: "Jan 2024" },
-      { action: "Account Created", by: "System", date: "Dec 2023" },
-    ],
-  },
-];
-
-type Client = Omit<(typeof INITIAL_CLIENTS)[number], "kycDate" | "kycReviewer"> & {
-  kycDate: string | null;
-  kycReviewer: string | null;
-};
-
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Styles ─────────────────────────────────────────────────────────────────
 const KYC_STYLES: Record<string, string> = {
   Verified: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800",
-  Pending:  "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800",
+  Pending: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800",
   Rejected: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800",
 };
 const STATUS_STYLES: Record<string, string> = {
-  Active:    "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800",
+  Active: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800",
   Suspended: "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700",
-  Flagged:   "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800",
+  Flagged: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800",
 };
 const TIER_STYLES: Record<string, string> = {
-  Gold:    "text-amber-600 bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800",
-  Silver:  "text-slate-500 bg-slate-100 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
-  Bronze:  "text-orange-600 bg-orange-50 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800",
-  Platinum:"text-violet-600 bg-violet-50 border-violet-200 dark:bg-violet-900/20 dark:text-violet-300 dark:border-violet-800",
-};
-const BOOKING_STATUS: Record<string, string> = {
-  Completed: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800",
-  Active:    "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800",
-  Cancelled: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800",
+  Platinum: "text-violet-600 bg-violet-50 border-violet-200 dark:bg-violet-900/20 dark:text-violet-300 dark:border-violet-800",
+  Gold: "text-amber-600 bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800",
+  Silver: "text-slate-500 bg-slate-100 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
+  Bronze: "text-orange-600 bg-orange-50 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800",
 };
 
-// ─── Reusables ────────────────────────────────────────────────────────────────
 const fade: Variants = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 26 } } };
 const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } };
 
 const Card = ({ children, className = "" }: { children?: ReactNode; className?: string }) => (
-  <div className={`rounded-2xl border bg-white dark:bg-[#0B1120] border-slate-200 dark:border-slate-800/80 shadow-sm ${className}`}>
-    {children}
-  </div>
+  <div className={`rounded-2xl border bg-white dark:bg-[#0B1120] border-slate-200 dark:border-slate-800/80 shadow-sm ${className}`}>{children}</div>
 );
-
 const Badge = ({ label, style }: { label: ReactNode; style?: string }) => (
   <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${style}`}>{label}</span>
 );
-
 const Avatar = ({ name, size = "md", flagged = false }: { name: string; size?: "sm" | "md" | "lg"; flagged?: boolean }) => {
-  const initials = name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase();
   const sz = { lg: "w-16 h-16 text-xl", md: "w-10 h-10 text-sm", sm: "w-8 h-8 text-xs" }[size];
-  const palette = ["from-blue-500 to-cyan-600","from-violet-500 to-purple-700","from-emerald-500 to-teal-600","from-rose-500 to-pink-600","from-amber-500 to-orange-600"];
-  const grad = palette[name.charCodeAt(0) % palette.length];
+  const palette = ["from-blue-500 to-cyan-600", "from-violet-500 to-purple-700", "from-emerald-500 to-teal-600", "from-rose-500 to-pink-600", "from-amber-500 to-orange-600"];
   return (
-    <div className={`relative ${sz} rounded-xl bg-gradient-to-br ${grad} flex items-center justify-center font-black text-white shadow-inner flex-shrink-0`}>
-      {initials}
-      {flagged && <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 rounded-full border-2 border-white dark:border-[#0B1120] shadow-sm" />}
+    <div className={`relative ${sz} rounded-xl bg-gradient-to-br ${palette[name.charCodeAt(0) % palette.length]} flex items-center justify-center font-black text-white shadow-inner flex-shrink-0`}>
+      {name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase()}
+      {flagged && <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 rounded-full border-2 border-white dark:border-[#0B1120]" />}
     </div>
   );
 };
-
-const ScoreBar = ({ score }: { score: number }) => {
-  const color = score >= 75 ? "bg-emerald-500" : score >= 50 ? "bg-amber-500" : "bg-rose-500";
+const RateBar = ({ rate }: { rate: number | null }) => {
+  if (rate === null) return <span className="text-xs text-slate-400">No finished trips</span>;
+  const color = rate >= 75 ? "bg-emerald-500" : rate >= 50 ? "bg-amber-500" : "bg-rose-500";
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-        <motion.div initial={{ width: 0 }} animate={{ width: `${score}%` }} transition={{ duration: 0.9, ease: "easeOut" }} className={`h-full rounded-full ${color}`} />
+        <motion.div initial={{ width: 0 }} animate={{ width: `${rate}%` }} transition={{ duration: 0.9 }} className={`h-full rounded-full ${color}`} />
       </div>
-      <span className={`text-xs font-black w-6 text-right ${score >= 75 ? "text-emerald-600 dark:text-emerald-400" : score >= 50 ? "text-amber-600 dark:text-amber-400" : "text-rose-600 dark:text-rose-400"}`}>{score}</span>
+      <span className="text-xs font-black w-9 text-right text-slate-600 dark:text-slate-300">{rate}%</span>
     </div>
   );
 };
 
-interface FieldProps {
-  label?: ReactNode;
-  value: string | number;
-  onChange: (value: string) => void;
-  className?: string;
-}
-
-const Input = ({ label, value, onChange, type = "text", placeholder = "", required = false, className = "" }: FieldProps & { type?: string; placeholder?: string; required?: boolean }) => (
-  <div className={className}>
-    {label && <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">{label}{required && <span className="text-rose-500 ml-0.5">*</span>}</label>}
-    <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600" />
-  </div>
+const inputClass = "w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500";
+const Field = ({ label, error, className = "", children }: { label: string; error?: string; className?: string; children: ReactNode }) => (
+  <label className={`block ${className}`}>
+    <span className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">{label}</span>
+    {children}
+    {error && <span className="block text-xs text-rose-500 mt-1">{error}</span>}
+  </label>
 );
 
-const Sel = ({ label, value, onChange, options, className = "" }: FieldProps & { options: { value: string; label: string }[] }) => (
-  <div className={className}>
-    {label && <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">{label}</label>}
-    <select value={value} onChange={e => onChange(e.target.value)}
-      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-all appearance-none cursor-pointer">
-      {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-    </select>
-  </div>
-);
-
-// ─── Modal Shell ──────────────────────────────────────────────────────────────
-const Modal = ({ title, onClose, children, wide = false }: { title: ReactNode; onClose: () => void; children?: ReactNode; wide?: boolean }) => (
-  <AnimatePresence>
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm" onClick={onClose}>
-      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-        transition={{ type: "spring", stiffness: 320, damping: 28 }}
-        className={`relative w-full ${wide ? "max-w-3xl" : "max-w-lg"} bg-white dark:bg-[#0B1120] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[90vh] overflow-y-auto`}
-        onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white/80 dark:bg-[#0B1120]/80 backdrop-blur-md z-10">
-          <h3 className="text-base font-black text-slate-900 dark:text-slate-100">{title}</h3>
-          <button onClick={onClose} className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-            <XCircle size={20} />
-          </button>
-        </div>
-        <div className="p-6">{children}</div>
-      </motion.div>
+const Modal = ({ title, onClose, children, wide = false }: { title: string; onClose: () => void; children?: ReactNode; wide?: boolean }) => (
+  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm" onClick={onClose}>
+    <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+      role="dialog" aria-modal="true" aria-label={title}
+      className={`relative w-full ${wide ? "max-w-3xl" : "max-w-lg"} bg-white dark:bg-[#0B1120] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[90vh] overflow-y-auto`}
+      onClick={e => e.stopPropagation()}>
+      <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white/80 dark:bg-[#0B1120]/80 backdrop-blur-md z-10">
+        <h3 className="text-base font-black text-slate-900 dark:text-slate-100">{title}</h3>
+        <button onClick={onClose} aria-label="Close" className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"><XCircle size={20} /></button>
+      </div>
+      <div className="p-6">{children}</div>
     </motion.div>
-  </AnimatePresence>
+  </motion.div>
 );
 
-const Confirm = ({ message, onConfirm, onCancel, danger = true }: { message: string; onConfirm: () => void; onCancel: () => void; danger?: boolean }) => (
-  <Modal title={danger ? "⚠️ Confirm Action" : "Confirm"} onClose={onCancel}>
-    <p className="text-sm text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">{message}</p>
-    <div className="flex gap-3 justify-end">
-      <button onClick={onCancel} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">Cancel</button>
-      <button onClick={onConfirm} className={`px-4 py-2 rounded-xl text-sm font-bold text-white transition-colors shadow-lg ${danger ? "bg-rose-600 hover:bg-rose-500 shadow-rose-500/20" : "bg-blue-600 hover:bg-blue-500 shadow-blue-500/20"}`}>Confirm</button>
-    </div>
-  </Modal>
-);
+// ─── Client form ────────────────────────────────────────────────────────────
+const FIELDS = ["name", "email", "phone", "alt_phone", "national_id", "kra_pin", "date_of_birth", "gender", "address", "county", "admin_notes"] as const;
+type ClientForm = Record<(typeof FIELDS)[number], string>;
+const toForm = (c: AdminClient | null): ClientForm => Object.fromEntries(FIELDS.map((f) => [f, c?.[f] ?? ""])) as ClientForm;
 
-// ─── Client Form ──────────────────────────────────────────────────────────────
-const emptyClient = (): Client => ({
-  id: `USR-${String(Math.floor(10000 + Math.random() * 90000))}`,
-  name: "", email: "", phone: "", altPhone: "", dob: "", gender: "Male",
-  nationalId: "", kraPin: "", address: "", county: "",
-  joined: new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" }),
-  ltv: 0, bookings: 0, status: "Active", kyc: "Pending",
-  kycDate: null, kycReviewer: null, kycDocs: [],
-  tier: "Silver", creditScore: 50, notes: "", flagged: false,
-  bookingHistory: [], payments: [], activityLog: [{ action: "Account Created", by: "Admin", date: new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" }) }],
-});
+const ClientFormView = ({ initial, onSaved, onClose }: { initial: AdminClient | null; onSaved: (c: AdminClient, password?: string) => void; onClose: () => void }) => {
+  const [form, setForm] = useState<ClientForm>(toForm(initial));
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const set = (k: keyof ClientForm) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const text = (k: keyof ClientForm, label: string, opts: { type?: string; className?: string; required?: boolean } = {}) => (
+    <Field label={label} error={errors[k]} className={opts.className}>
+      <input type={opts.type ?? "text"} value={form[k]} onChange={set(k)} required={opts.required} className={inputClass} />
+    </Field>
+  );
 
-const ClientForm = ({ initial = null, onSave, onClose }: { initial?: Client | null; onSave: (client: Client) => void; onClose: () => void }) => {
-  const [form, setForm] = useState<Client>(initial ? JSON.parse(JSON.stringify(initial)) : emptyClient());
-  const set = (k: keyof Client, v: unknown) => setForm(f => ({ ...f, [k]: v }));
-  const isEdit = !!initial;
+  const save = async () => {
+    setSaving(true);
+    const body = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, v === "" ? null : v]));
+    try {
+      const res = await api<{ data: AdminClient; temporary_password?: string }>(initial ? `/api/admin/clients/${initial.id}` : "/api/admin/clients", { method: initial ? "PUT" : "POST", body });
+      onSaved(res.data, res.temporary_password);
+    } catch (err) {
+      setErrors(fieldErrors(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-4">
-        <Input label="Full Name" value={form.name} onChange={v => set("name", v)} required className="col-span-2" />
-        <Input label="Email" value={form.email} onChange={v => set("email", v)} type="email" required />
-        <Input label="Phone" value={form.phone} onChange={v => set("phone", v)} type="tel" required />
-        <Input label="Alt. Phone" value={form.altPhone} onChange={v => set("altPhone", v)} type="tel" />
-        <Input label="Date of Birth" value={form.dob} onChange={v => set("dob", v)} type="date" />
-        <Sel label="Gender" value={form.gender} onChange={v => set("gender", v)} options={["Male","Female","Other","Prefer not to say"].map(x=>({value:x,label:x}))} />
-        <Input label="National ID" value={form.nationalId} onChange={v => set("nationalId", v)} required />
-        <Input label="KRA PIN" value={form.kraPin} onChange={v => set("kraPin", v)} />
-        <Input label="Address" value={form.address} onChange={v => set("address", v)} className="col-span-2" />
-        <Input label="County" value={form.county} onChange={v => set("county", v)} />
-        <Sel label="Tier" value={form.tier} onChange={v => set("tier", v)} options={["Bronze","Silver","Gold","Platinum"].map(x=>({value:x,label:x}))} />
-        <Sel label="KYC Status" value={form.kyc} onChange={v => set("kyc", v)} options={["Pending","Verified","Rejected"].map(x=>({value:x,label:x}))} />
-        <Sel label="Account Status" value={form.status} onChange={v => set("status", v)} options={["Active","Suspended"].map(x=>({value:x,label:x}))} />
+        {text("name", "Full Name", { className: "col-span-2", required: true })}
+        {text("email", "Email Address", { type: "email", required: true })}
+        {text("phone", "Primary Phone", { type: "tel" })}
+        {text("alt_phone", "Alt. Phone", { type: "tel" })}
+        {text("date_of_birth", "Date of Birth", { type: "date" })}
+        <Field label="Gender" error={errors.gender}>
+          <select value={form.gender} onChange={set("gender")} className={inputClass}><option value="">—</option><option>Male</option><option>Female</option><option>Other</option></select>
+        </Field>
+        {text("national_id", "National ID / Passport")}
+        {text("kra_pin", "KRA PIN")}
+        {text("address", "Address")}
+        {text("county", "County")}
       </div>
-      <div>
-        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Admin Notes</label>
-        <textarea value={form.notes} onChange={e => set("notes", e.target.value)} rows={3} placeholder="Internal notes (not visible to client)..."
-          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-all resize-none placeholder:text-slate-400 dark:placeholder:text-slate-600" />
-      </div>
-      <div className="flex gap-3 justify-end pt-2">
-        <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">Cancel</button>
-        <button onClick={() => onSave(form)} className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold shadow-lg shadow-blue-500/20 transition-all hover:-translate-y-0.5">
-          {isEdit ? "Save Changes" : "Create Account"}
-        </button>
+      <Field label="Internal Notes" error={errors.admin_notes}>
+        <textarea value={form.admin_notes} onChange={set("admin_notes")} rows={2} className={`${inputClass} resize-none`} />
+      </Field>
+      {!initial && <p className="text-xs text-slate-500">Creating a client also creates their login. You'll get a temporary password to pass on.</p>}
+      {errors.form && <p className="text-sm text-rose-600 dark:text-rose-400">{errors.form}</p>}
+      <div className="flex gap-3 justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+        <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300">Cancel</button>
+        <button onClick={save} disabled={saving} className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold disabled:opacity-60">{saving ? "Saving…" : initial ? "Save Changes" : "Create Client"}</button>
       </div>
     </div>
   );
 };
 
-// ─── KYC Review Modal ────────────────────────────────────────────────────────
-const KYCReviewModal = ({ client, onDecision, onClose }: { client: Client; onDecision: (decision: string, reason: string) => void; onClose: () => void }) => {
-  const [decision, setDecision] = useState("");
-  const [reason, setReason] = useState("");
+// ─── KYC review ─────────────────────────────────────────────────────────────
+const KYCReview = ({ client, onDone, onClose }: { client: AdminClient; onDone: () => void; onClose: () => void }) => {
+  const [decision, setDecision] = useState<"" | "verified" | "rejected">("");
+  const [note, setNote] = useState("");
+  const [error, setError] = useState("");
+  const submit = async () => {
+    try {
+      await api(`/api/admin/clients/${client.id}/kyc`, { method: "POST", body: { decision, note: note || null } });
+      onDone();
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  };
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800">
-        <Avatar name={client.name} size="md" />
+        <Avatar name={client.name} />
         <div>
           <p className="font-black text-slate-900 dark:text-slate-100">{client.name}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">{client.id} · ID: {client.nationalId}</p>
+          <p className="text-xs text-slate-500">{client.reference} · ID: {client.national_id ?? <span className="text-rose-500 font-bold">not provided</span>} · DOB: {client.date_of_birth ? longDate(client.date_of_birth) : "—"}</p>
         </div>
       </div>
-
-      <div>
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Documents Submitted</p>
-        <div className="flex flex-wrap gap-2">
-          {client.kycDocs.length ? client.kycDocs.map(doc => (
-            <span key={doc} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300">
-              <FileText size={14} className="text-slate-400" />
-              {doc}
-            </span>
-          )) : <p className="text-xs text-slate-400 dark:text-slate-500">No documents uploaded</p>}
-        </div>
+      <p className="text-xs text-slate-500 flex items-start gap-2"><FileText size={14} className="shrink-0 mt-0.5" /> Customers can't upload ID documents in the app yet, so check the ID number against the original when the client collects a car.</p>
+      <div className="grid grid-cols-2 gap-3">
+        {(["verified", "rejected"] as const).map(d => (
+          <button key={d} onClick={() => setDecision(d)} aria-pressed={decision === d}
+            className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 text-sm font-bold transition-all ${decision === d
+              ? d === "verified" ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400" : "border-rose-500 bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-400"
+              : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"}`}>
+            {d === "verified" ? <><CheckCircle2 size={16} /> Approve</> : <><XCircle size={16} /> Reject</>}
+          </button>
+        ))}
       </div>
-
-      <div>
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Decision</p>
-        <div className="grid grid-cols-2 gap-3">
-          {["Verified", "Rejected"].map(d => (
-            <button key={d} onClick={() => setDecision(d)}
-              className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 text-sm font-bold transition-all ${decision === d
-                ? d === "Verified" ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400" : "border-rose-500 bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-400"
-                : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600"}`}>
-              {d === "Verified" ? <><CheckCircle2 size={16} /> Approve</> : <><XCircle size={16} /> Reject</>}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {decision === "Rejected" && (
-        <div>
-          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Rejection Reason</label>
-          <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2} placeholder="State the reason for rejection..."
-            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-500/40 focus:border-rose-500 transition-all resize-none placeholder:text-slate-400 dark:placeholder:text-slate-600" />
-        </div>
+      {decision === "rejected" && (
+        <Field label="Rejection reason (shown in the audit log)">
+          <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} className={`${inputClass} resize-none`} />
+        </Field>
       )}
-
+      {error && <p className="text-sm text-rose-600 dark:text-rose-400">{error}</p>}
       <div className="flex gap-3 justify-end pt-2">
-        <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">Cancel</button>
-        <button disabled={!decision} onClick={() => onDecision(decision, reason)}
-          className={`px-5 py-2.5 rounded-xl text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 disabled:opacity-40 disabled:cursor-not-allowed ${decision === "Verified" ? "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20" : "bg-rose-600 hover:bg-rose-500 shadow-rose-500/20"}`}>
-          Submit Decision
-        </button>
+        <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300">Cancel</button>
+        <button disabled={!decision} onClick={submit} className={`px-5 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-40 ${decision === "rejected" ? "bg-rose-600" : "bg-emerald-600"}`}>Submit Decision</button>
       </div>
     </div>
   );
 };
 
-// ─── CLIENT DETAIL PAGE ───────────────────────────────────────────────────────
-interface ClientDetailProps {
-  client: Client;
-  onBack: () => void;
-  onUpdate: (client: Client) => void;
-  onDelete: (id: string) => void;
-}
-
-const ClientDetail = ({ client: init, onBack, onUpdate, onDelete }: ClientDetailProps) => {
-  const [client, setClient] = useState(init);
+// ─── Client detail ──────────────────────────────────────────────────────────
+const ClientDetail = ({ clientId, onBack, onChanged }: { clientId: number; onBack: () => void; onChanged: () => void }) => {
+  const { data, error, reload } = useApi<{ data: AdminClientDetail }>(`/api/admin/clients/${clientId}`);
   const [tab, setTab] = useState("overview");
-  const [modal, setModal] = useState<{ type: "edit" | "kyc" | "confirm_status" | "confirm_delete" } | null>(null);
+  const [modal, setModal] = useState<"edit" | "kyc" | null>(null);
+  const [message, setMessage] = useState("");
+  const client = data?.data;
+  if (!client) return <LoadState loading={!error} error={error} onRetry={reload} />;
 
-  const save = (updated: Client) => { setClient(updated); onUpdate(updated); };
-
-  const handleKYCDecision = (decision: string, reason: string) => {
-    const now = new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" });
-    const updated = {
-      ...client, kyc: decision, kycDate: now, kycReviewer: "Super Admin",
-      activityLog: [{ action: `KYC ${decision}${reason ? ` — ${reason}` : ""}`, by: "Super Admin", date: now }, ...client.activityLog],
-    };
-    save(updated); setModal(null);
+  const refresh = () => { reload(); onChanged(); };
+  const run = async (fn: () => Promise<unknown>) => {
+    try {
+      await fn();
+      setMessage("");
+      refresh();
+    } catch (err) {
+      setMessage(errorMessage(err));
+    }
+  };
+  const suspended = client.status === "Suspended";
+  const toggleSuspend = () => {
+    if (window.confirm(`${suspended ? "Reinstate" : "Suspend"} ${client.name}? ${suspended ? "They'll be able to sign in again." : "They'll be signed out and can't sign in."}`))
+      run(() => api(`/api/admin/users/${client.id}/status`, { method: "PATCH", body: { suspended: !suspended } }));
+  };
+  const toggleFlag = () => run(() => api(`/api/admin/clients/${client.id}/flag`, { method: "POST", body: { flagged: !client.flagged } }));
+  const remove = async () => {
+    if (!window.confirm(`Delete ${client.name}'s account? Their past bookings and payments stay on the dealers' records.`)) return;
+    try {
+      await api(`/api/admin/clients/${client.id}`, { method: "DELETE" });
+      onChanged();
+      onBack();
+    } catch (err) {
+      setMessage(errorMessage(err));
+    }
   };
 
-  const handleToggleStatus = () => {
-    const newStatus = client.status === "Active" ? "Suspended" : "Active";
-    const now = new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" });
-    const updated = {
-      ...client, status: newStatus,
-      activityLog: [{ action: `Account ${newStatus === "Active" ? "Reinstated" : "Suspended"}`, by: "Super Admin", date: now }, ...client.activityLog],
-    };
-    save(updated); setModal(null);
-  };
-
-  const handleToggleFlag = () => {
-    const now = new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" });
-    const updated = {
-      ...client, flagged: !client.flagged,
-      activityLog: [{ action: client.flagged ? "Flag Removed" : "Account Flagged", by: "Super Admin", date: now }, ...client.activityLog],
-    };
-    save(updated);
-  };
-
-  const TABS = ["overview", "bookings", "payments", "activity", "settings"];
+  const TABS = [
+    { id: "overview", label: "Overview" },
+    { id: "bookings", label: `Bookings (${client.bookings.length})` },
+    { id: "payments", label: `Payments (${client.payments.length})` },
+    { id: "activity", label: "Activity" },
+    { id: "settings", label: "Settings" },
+  ];
 
   return (
     <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-6 pb-10">
-      {/* Header */}
       <motion.div variants={fade} className="flex flex-col sm:flex-row gap-4 sm:items-start justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-blue-600 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all">
-            <ArrowLeft size={18} />
-          </button>
+          <button onClick={onBack} aria-label="Back to clients" className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-blue-600"><ArrowLeft size={18} /></button>
           <Avatar name={client.name} size="lg" flagged={client.flagged} />
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">{client.name}</h2>
               <Badge label={client.status} style={STATUS_STYLES[client.status]} />
-              <Badge label={client.kyc} style={KYC_STYLES[client.kyc]} />
-              {client.flagged && <Badge label="Flagged" style={STATUS_STYLES.Flagged} />}
+              <Badge label={`KYC ${client.kyc}`} style={KYC_STYLES[client.kyc]} />
+              <Badge label={client.tier} style={TIER_STYLES[client.tier]} />
             </div>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5 font-mono">{client.id} · <span className="font-sans">{client.email}</span></p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{client.reference} · joined {longDate(client.joined)} · {client.last_login_at ? `last sign-in ${dateTime(client.last_login_at)}` : "never signed in"}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-          <button onClick={handleToggleFlag}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-bold transition-colors ${client.flagged ? "border-rose-300 text-rose-600 bg-rose-50 dark:bg-rose-900/20 dark:border-rose-800 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-amber-300 hover:text-amber-600 dark:hover:border-amber-700 dark:hover:text-amber-500 bg-white dark:bg-[#0B1120]"}`}>
-            <Flag size={16} fill={client.flagged ? "currentColor" : "none"} />
-            {client.flagged ? "Unflag" : "Flag"}
-          </button>
-          <button onClick={() => setModal({ type: "kyc" })} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors bg-white dark:bg-[#0B1120]">
-            <ShieldCheck size={16} />
-            KYC Review
-          </button>
-          <button onClick={() => setModal({ type: "edit" })} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors bg-white dark:bg-[#0B1120]">
-            <Edit3 size={16} />
-            Edit
-          </button>
-          <button onClick={() => setModal({ type: "confirm_status" })}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:-translate-y-0.5 shadow-md ${client.status === "Active" ? "bg-rose-600 hover:bg-rose-500 shadow-rose-500/20" : "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20"}`}>
-            {client.status === "Active" ? <XCircle size={16} /> : <CheckCircle2 size={16} />}
-            {client.status === "Active" ? "Suspend" : "Reinstate"}
-          </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => setModal("kyc")} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-700 dark:text-slate-300"><ShieldCheck size={16} /> KYC Review</button>
+          <button onClick={() => setModal("edit")} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-700 dark:text-slate-300"><Edit3 size={16} /> Edit</button>
+          <button onClick={toggleSuspend} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white ${suspended ? "bg-emerald-600" : "bg-rose-600"}`}>{suspended ? <CheckCircle2 size={16} /> : <XCircle size={16} />} {suspended ? "Reinstate" : "Suspend"}</button>
         </div>
       </motion.div>
 
-      {/* KPI Strip */}
+      {message && <p className="text-sm text-rose-600 dark:text-rose-400">{message}</p>}
+
       <motion.div variants={fade} className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: "Lifetime Value", value: `KSh ${client.ltv.toLocaleString()}`, sub: `${client.bookings} bookings`, color: "blue", icon: CreditCard },
-          { label: "Credit Score", value: client.creditScore, sub: client.creditScore >= 75 ? "Excellent" : client.creditScore >= 50 ? "Fair" : "Poor", color: client.creditScore >= 75 ? "emerald" : client.creditScore >= 50 ? "amber" : "rose", icon: Activity },
-          { label: "Member Since", value: client.joined, sub: client.county, color: "violet", icon: Calendar },
-          { label: "KYC Status", value: client.kyc, sub: client.kycDate ? `Since ${client.kycDate}` : "Not reviewed", color: client.kyc === "Verified" ? "emerald" : client.kyc === "Pending" ? "amber" : "rose", icon: ShieldCheck },
-        ].map(({ label, value, sub, color, icon: IconCmp }) => {
-          const bg = { blue:"bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400", emerald:"bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400", amber:"bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400", rose:"bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400", violet:"bg-violet-50 text-violet-600 dark:bg-violet-900/20 dark:text-violet-400" }[color];
-          return (
-            <Card key={label} className="p-5 flex items-center gap-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
-              <div className={`w-11 h-11 rounded-xl ${bg} flex items-center justify-center flex-shrink-0`}><IconCmp size={20} /></div>
-              <div><p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">{label}</p><p className="font-black text-slate-900 dark:text-slate-100 leading-none mt-0.5">{value}</p><p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{sub}</p></div>
-            </Card>
-          );
-        })}
-      </motion.div>
-
-      {/* Animated Tabs */}
-      <motion.div variants={fade} className="flex gap-6 border-b border-slate-200 dark:border-slate-800">
-        {TABS.map(t => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`relative pb-3 text-sm font-bold capitalize transition-all ${tab === t ? "text-blue-600 dark:text-blue-400" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"}`}>
-            {t}
-            {tab === t && (
-              <motion.div layoutId="activeClientTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />
-            )}
-          </button>
+          { label: "Lifetime Value", value: ksh(client.ltv), icon: CreditCard, tone: "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400" },
+          { label: "Bookings", value: client.bookings_count, icon: Car, tone: "bg-violet-50 text-violet-600 dark:bg-violet-900/20 dark:text-violet-400" },
+          { label: "Completed Trips", value: client.completed_trips, icon: CheckCircle2, tone: "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400" },
+          { label: "KYC", value: client.kyc, icon: ShieldCheck, tone: client.kyc === "Verified" ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400" : client.kyc === "Pending" ? "bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400" : "bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400" },
+        ].map(({ label, value, icon: Ico, tone }) => (
+          <Card key={label} className="p-5 flex items-center gap-4">
+            <div className={`w-11 h-11 rounded-xl ${tone} flex items-center justify-center flex-shrink-0`}><Ico size={20} /></div>
+            <div><p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{label}</p><p className="text-xl font-black text-slate-900 dark:text-slate-100 leading-none mt-0.5">{value}</p></div>
+          </Card>
         ))}
       </motion.div>
 
-      <AnimatePresence mode="wait">
-        {/* ── Overview ── */}
-        {tab === "overview" && (
-          <motion.div key="ov" variants={stagger} initial="hidden" animate="show" exit={{ opacity: 0 }} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <motion.div variants={fade}>
-              <Card className="p-6 space-y-4">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Personal Details</h4>
-                <div className="space-y-4">
-                  {[
-                    { label: "Full Name", value: client.name, icon: User },
-                    { label: "Date of Birth", value: client.dob || "—", icon: Calendar },
-                    { label: "Gender", value: client.gender || "—", icon: Users },
-                    { label: "Phone", value: client.phone, icon: Phone },
-                    { label: "Alt. Phone", value: client.altPhone || "—", icon: Phone },
-                    { label: "Email", value: client.email, icon: Mail },
-                    { label: "Address", value: `${client.address}, ${client.county}`, icon: MapPin },
-                  ].map(({ label, value, icon: IconCmp }) => (
-                    <div key={label} className="flex items-center gap-4 group">
-                      <div className="w-9 h-9 rounded-xl bg-slate-50 dark:bg-slate-800/60 flex items-center justify-center flex-shrink-0 text-slate-400 group-hover:text-blue-500 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 transition-all"><IconCmp size={16} /></div>
-                      <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</p><p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{value}</p></div>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            </motion.div>
-            <motion.div variants={fade} className="space-y-4">
-              <Card className="p-6 space-y-4">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Identity & Compliance</h4>
-                {[
-                  { label: "National ID", value: client.nationalId || "—" },
-                  { label: "KRA PIN", value: client.kraPin || "—" },
-                  { label: "KYC Status", value: client.kyc },
-                  { label: "KYC Date", value: client.kycDate || "Not reviewed" },
-                  { label: "Reviewed By", value: client.kycReviewer || "—" },
-                ].map(({ label, value }) => (
-                  <div key={label} className="flex items-center justify-between text-sm">
-                    <span className="text-slate-500 dark:text-slate-400 font-medium">{label}</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200">{value}</span>
-                  </div>
-                ))}
-                <div className="pt-2">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">KYC Documents</p>
-                  <div className="flex flex-wrap gap-2">
-                    {client.kycDocs.length ? client.kycDocs.map(d => (
-                      <span key={d} className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5"><FileText size={12} className="text-slate-400" /> {d}</span>
-                    )) : <span className="text-xs text-slate-400 dark:text-slate-500">None uploaded</span>}
-                  </div>
-                </div>
-              </Card>
-              <Card className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Credit Score</h4>
-                  <Badge label={client.tier} style={TIER_STYLES[client.tier]} />
-                </div>
-                <ScoreBar score={client.creditScore} />
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-3">Based on payment history and activity</p>
-              </Card>
-              {client.notes && (
-                <Card className="p-5 border-l-4 border-l-amber-400 dark:border-l-amber-500 bg-amber-50/50 dark:bg-amber-900/10">
-                  <p className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1">Admin Note</p>
-                  <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{client.notes}</p>
-                </Card>
-              )}
-            </motion.div>
-          </motion.div>
-        )}
+      <motion.div variants={fade} className="flex gap-1 border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} aria-pressed={tab === t.id}
+            className={`px-4 py-2.5 text-sm font-bold whitespace-nowrap ${tab === t.id ? "text-blue-600 border-b-2 border-blue-600 -mb-px" : "text-slate-500 dark:text-slate-400"}`}>{t.label}</button>
+        ))}
+      </motion.div>
 
-        {/* ── Bookings ── */}
-        {tab === "bookings" && (
-          <motion.div key="bk" variants={stagger} initial="hidden" animate="show" exit={{ opacity: 0 }} className="space-y-4">
-            {client.bookingHistory.length === 0 ? (
-              <motion.div variants={fade}><Card className="p-12 text-center"><Car size={40} className="mx-auto text-slate-300 dark:text-slate-700 mb-3" /><p className="text-slate-400 text-sm">No bookings yet.</p></Card></motion.div>
-            ) : client.bookingHistory.map(b => (
-              <motion.div key={b.id} variants={fade}>
-                <Card className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
-                  <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center flex-shrink-0">
-                      <Car size={20} />
-                    </div>
-                    <div>
-                      <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">{b.vehicle}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">{b.id} <span className="font-sans">· {b.dealer} · {b.date}</span></p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto border-t sm:border-t-0 border-slate-100 dark:border-slate-800 pt-3 sm:pt-0">
-                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border ${BOOKING_STATUS[b.status]}`}>{b.status}</span>
-                    <p className="font-black text-slate-900 dark:text-slate-100 text-sm">KSh {b.amount.toLocaleString()}</p>
-                  </div>
-                </Card>
-              </motion.div>
-            ))}
-          </motion.div>
-        )}
-
-        {/* ── Payments ── */}
-        {tab === "payments" && (
-          <motion.div key="py" variants={stagger} initial="hidden" animate="show" exit={{ opacity: 0 }} className="space-y-4">
-            {client.payments.length === 0 ? (
-              <motion.div variants={fade}><Card className="p-12 text-center"><CreditCard size={40} className="mx-auto text-slate-300 dark:text-slate-700 mb-3" /><p className="text-slate-400 text-sm">No payment records.</p></Card></motion.div>
-            ) : client.payments.map(p => (
-              <motion.div key={p.id} variants={fade}>
-                <Card className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
-                  <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
-                      {p.method === "M-Pesa" ? <Smartphone size={20} /> : <CreditCard size={20} />}
-                    </div>
-                    <div>
-                      <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">{p.method}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">{p.id} <span className="font-sans">· {p.date}</span></p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto border-t sm:border-t-0 border-slate-100 dark:border-slate-800 pt-3 sm:pt-0">
-                    <span className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border border-emerald-200 dark:border-emerald-800 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">{p.status}</span>
-                    <p className="font-black text-slate-900 dark:text-slate-100 text-sm">KSh {p.amount.toLocaleString()}</p>
-                  </div>
-                </Card>
-              </motion.div>
-            ))}
-          </motion.div>
-        )}
-
-        {/* ── Activity ── */}
-        {tab === "activity" && (
-          <motion.div key="ac" variants={stagger} initial="hidden" animate="show" exit={{ opacity: 0 }}>
-            <Card className="p-6">
-              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Audit Log</h4>
-              <div className="relative pl-4">
-                <div className="absolute left-0 top-0 bottom-0 w-px bg-slate-200 dark:bg-slate-700" />
-                {client.activityLog.map((log, i) => (
-                  <motion.div key={i} variants={fade} className="relative mb-6 last:mb-0 pl-6 group">
-                    <div className="absolute left-[-1.15rem] top-1 w-3.5 h-3.5 rounded-full bg-slate-200 dark:bg-slate-700 border-2 border-white dark:border-[#0B1120] group-hover:bg-blue-500 transition-colors" />
-                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{log.action}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">By <span className="font-semibold text-slate-700 dark:text-slate-300">{log.by}</span> · {log.date}</p>
-                  </motion.div>
-                ))}
+      {tab === "overview" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card className="p-6 space-y-3">
+            <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Personal Details</h4>
+            {[
+              [Mail, "Email", client.email], [Phone, "Phone", client.phone], [Phone, "Alt. Phone", client.alt_phone],
+              [Calendar, "Date of Birth", client.date_of_birth ? longDate(client.date_of_birth) : null], [Users, "Gender", client.gender],
+              [FileText, "National ID", client.national_id], [FileText, "KRA PIN", client.kra_pin], [MapPin, "Address", [client.address, client.county].filter(Boolean).join(", ")],
+            ].map(([Ico, label, value]) => {
+              const IconCmp = Ico as typeof Mail;
+              return (
+                <div key={label as string} className="flex items-center gap-3 text-sm">
+                  <IconCmp size={14} className="text-slate-400 shrink-0" />
+                  <span className="w-28 text-[11px] font-bold text-slate-400 uppercase tracking-wider">{label as string}</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">{(value as string) || "—"}</span>
+                </div>
+              );
+            })}
+          </Card>
+          <div className="space-y-4">
+            <Card className="p-6 space-y-3">
+              <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">KYC & Standing</h4>
+              <p className="text-sm text-slate-700 dark:text-slate-300">{client.kyc_reviewed_at ? `${client.kyc} by ${client.kyc_reviewer ?? "an admin"} on ${longDate(client.kyc_reviewed_at)}` : "Not reviewed yet"}{client.kyc_note ? `: "${client.kyc_note}"` : ""}</p>
+              <div>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Completion rate (completed vs cancelled)</p>
+                <RateBar rate={client.completion_rate} />
               </div>
+              <p className="text-xs text-slate-500">Tier is set by lifetime value: Silver from KSh 50K, Gold from 150K, Platinum from 500K.</p>
             </Card>
-          </motion.div>
-        )}
+            {client.admin_notes && (
+              <Card className="p-5 border-l-4 border-l-amber-400 bg-amber-50/50 dark:bg-amber-900/10">
+                <p className="text-xs font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1">Internal Note</p>
+                <p className="text-sm text-slate-700 dark:text-slate-300">{client.admin_notes}</p>
+              </Card>
+            )}
+          </div>
+        </div>
+      )}
 
-        {/* ── Settings ── */}
-        {tab === "settings" && (
-          <motion.div key="st" variants={stagger} initial="hidden" animate="show" exit={{ opacity: 0 }} className="space-y-4 max-w-xl">
-            <motion.div variants={fade}>
-              <Card className="p-6 space-y-4">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Account Controls</h4>
-                {[
-                  { label: "Edit Profile", sub: "Update client info, tier, and notes", action: () => setModal({ type: "edit" }), icon: Edit3 },
-                  { label: "KYC Review", sub: "Approve or reject identity verification", action: () => setModal({ type: "kyc" }), icon: ShieldCheck },
-                  { label: client.status === "Active" ? "Suspend Account" : "Reinstate Account", sub: `Currently: ${client.status}`, action: () => setModal({ type: "confirm_status" }), icon: client.status === "Active" ? XCircle : CheckCircle2 },
-                  { label: client.flagged ? "Remove Flag" : "Flag Account", sub: "Mark for compliance review", action: handleToggleFlag, icon: Flag },
-                ].map(({ label, sub, action, icon: IconCmp }) => (
-                  <button key={label} onClick={action} className="w-full flex items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left group">
-                    <div className="flex items-center gap-4">
-                      <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 group-hover:text-blue-500 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 transition-all">
-                        <IconCmp size={16} />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-800 dark:text-slate-200 text-sm group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{label}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{sub}</p>
-                      </div>
-                    </div>
-                    <ChevronRight size={18} className="text-slate-400 group-hover:text-blue-500 transition-colors" />
-                  </button>
-                ))}
-              </Card>
-            </motion.div>
-            <motion.div variants={fade}>
-              <Card className="p-6 border-rose-200 dark:border-rose-900/50 bg-rose-50/30 dark:bg-rose-900/10">
-                <h4 className="text-[10px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest mb-3">Danger Zone</h4>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mb-5">Permanently delete this account and all associated data. This action cannot be undone.</p>
-                <button onClick={() => setModal({ type: "confirm_delete" })} className="flex items-center justify-center sm:justify-start gap-2 w-full sm:w-auto px-5 py-3 rounded-xl bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 text-sm font-bold hover:bg-rose-600 hover:text-white dark:hover:bg-rose-500 dark:hover:text-white transition-all">
-                  <ShieldAlert size={16} />
-                  Delete Account
-                </button>
-              </Card>
-            </motion.div>
-          </motion.div>
-        )}
+      {tab === "bookings" && (
+        <Card className="divide-y divide-slate-100 dark:divide-slate-800">
+          {client.bookings.length === 0 ? <p className="p-8 text-center text-sm text-slate-400">No bookings yet.</p> : client.bookings.map(b => (
+            <div key={b.id} className="p-4 flex items-center justify-between gap-4">
+              <div>
+                <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">{b.vehicle}</p>
+                <p className="text-xs text-slate-500">{b.reference} · {b.dealer} · {longDate(b.pickup_at)}</p>
+              </div>
+              <div className="flex items-center gap-3"><span className="font-black text-sm text-slate-900 dark:text-white">{ksh(b.total)}</span><BookingStatusPill booking={{ status: b.status, is_overdue: false }} /></div>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {tab === "payments" && (
+        <Card className="divide-y divide-slate-100 dark:divide-slate-800">
+          {client.payments.length === 0 ? <p className="p-8 text-center text-sm text-slate-400">No payments yet.</p> : client.payments.map(p => (
+            <div key={p.id} className="p-4 flex items-center justify-between gap-4">
+              <div>
+                <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">{p.reference}</p>
+                <p className="text-xs text-slate-500">{longDate(p.paid_at)} · {PAYMENT_LABEL[p.method as ReceivedMethod] ?? p.method} · {p.booking_reference}</p>
+              </div>
+              <span className={`font-black text-sm ${p.status === "refunded" ? "line-through text-slate-400" : "text-slate-900 dark:text-white"}`}>{ksh(p.amount)}</span>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {tab === "activity" && (
+        <Card className="p-6">
+          {client.activity.length === 0 ? <p className="text-sm text-slate-400 text-center">No recorded activity.</p> : (
+            <ol className="space-y-4">
+              {client.activity.map((a, i) => (
+                <li key={i} className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0"><Activity size={14} className="text-slate-500" /></div>
+                  <div><p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{a.action}</p><p className="text-xs text-slate-500">{a.by} · {dateTime(a.at)}</p></div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </Card>
+      )}
+
+      {tab === "settings" && (
+        <div className="space-y-4 max-w-lg">
+          <Card className="p-6 space-y-3">
+            {[
+              { label: "Edit Profile", sub: "Contact details, ID and notes", action: () => setModal("edit"), icon: Edit3 },
+              { label: "KYC Review", sub: "Approve or reject identity verification", action: () => setModal("kyc"), icon: ShieldCheck },
+              { label: client.flagged ? "Clear Flag" : "Flag for Review", sub: client.flagged ? "Remove the risk flag" : "Mark this account as needing attention", action: toggleFlag, icon: Flag },
+              { label: suspended ? "Reinstate Account" : "Suspend Account", sub: suspended ? "Allow sign-in again" : "Sign them out and block sign-in", action: toggleSuspend, icon: suspended ? CheckCircle2 : AlertCircle },
+            ].map(({ label, sub, action, icon: Ico }) => (
+              <button key={label} onClick={action} className="w-full flex items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-left">
+                <span className="flex items-center gap-3"><Ico size={16} className="text-slate-500" /><span><span className="block font-semibold text-slate-800 dark:text-slate-200 text-sm">{label}</span><span className="block text-xs text-slate-500">{sub}</span></span></span>
+                <ChevronRight size={16} className="text-slate-400" />
+              </button>
+            ))}
+          </Card>
+          <Card className="p-6 border-rose-200 dark:border-rose-900/50">
+            <h4 className="text-sm font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest mb-3">Danger Zone</h4>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Delete the account. Not possible while they have open bookings.</p>
+            <button onClick={remove} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 text-sm font-bold"><Trash2 size={15} /> Delete Account</button>
+          </Card>
+        </div>
+      )}
+
+      <AnimatePresence>
+        {modal === "edit" && <Modal title="Edit Client Profile" onClose={() => setModal(null)} wide><ClientFormView initial={client} onClose={() => setModal(null)} onSaved={() => { setModal(null); refresh(); }} /></Modal>}
+        {modal === "kyc" && <Modal title="KYC Review" onClose={() => setModal(null)}><KYCReview client={client} onClose={() => setModal(null)} onDone={() => { setModal(null); refresh(); }} /></Modal>}
       </AnimatePresence>
-
-      {/* Modals */}
-      {modal?.type === "edit" && <Modal title="Edit Client Profile" onClose={() => setModal(null)} wide><ClientForm initial={client} onSave={c => { save(c); setModal(null); }} onClose={() => setModal(null)} /></Modal>}
-      {modal?.type === "kyc" && <Modal title="KYC Review" onClose={() => setModal(null)}><KYCReviewModal client={client} onDecision={handleKYCDecision} onClose={() => setModal(null)} /></Modal>}
-      {modal?.type === "confirm_status" && <Confirm message={`${client.status === "Active" ? "Suspend" : "Reinstate"} account for ${client.name}? ${client.status === "Active" ? "They will lose platform access immediately." : "They will regain full platform access."}`} onConfirm={handleToggleStatus} onCancel={() => setModal(null)} danger={client.status === "Active"} />}
-      {modal?.type === "confirm_delete" && <Confirm message={`Permanently delete account for ${client.name} (${client.id})? All booking history and data will be erased.`} onConfirm={() => { onDelete(client.id); }} onCancel={() => setModal(null)} danger />}
     </motion.div>
   );
 };
 
-// ─── MAIN LIST ────────────────────────────────────────────────────────────────
+// ─── Main list ──────────────────────────────────────────────────────────────
+interface ClientList {
+  data: AdminClient[];
+  summary: { total: number; active: number; verified: number; pending: number; flagged: number; lifetime_value: number };
+}
+
 export default function SuperAdminClients() {
-  const [clients, setClients] = useState<Client[]>(INITIAL_CLIENTS);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [modal, setModal] = useState<{ type: "add" } | { type: "edit" | "confirm_delete"; payload: Client } | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [issued, setIssued] = useState<{ email: string; password: string } | null>(null);
   const [search, setSearch] = useState("");
   const [filterKYC, setFilterKYC] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
   const [sortBy, setSortBy] = useState("joined");
+  const term = useDebounced(search.trim());
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return clients
-      .filter(c => {
-        const m = !q || c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q) || c.id.toLowerCase().includes(q) || c.phone.includes(q);
-        const ks = filterKYC === "All" || c.kyc === filterKYC;
-        const ss = filterStatus === "All" || c.status === filterStatus;
-        return m && ks && ss;
-      })
-      .sort((a, b) => sortBy === "ltv" ? b.ltv - a.ltv : sortBy === "score" ? b.creditScore - a.creditScore : 0);
-  }, [clients, search, filterKYC, filterStatus, sortBy]);
+  const query = new URLSearchParams({ kyc: filterKYC, status: filterStatus, sort: sortBy, ...(term && { search: term }) });
+  const { data, loading, error, reload } = useApi<ClientList>(`/api/admin/clients?${query}`);
+  const clients = data?.data ?? [];
+  const stats = data?.summary;
 
-  const stats = useMemo(() => ({
-    total: clients.length,
-    active: clients.filter(c => c.status === "Active").length,
-    verified: clients.filter(c => c.kyc === "Verified").length,
-    pending: clients.filter(c => c.kyc === "Pending").length,
-    flagged: clients.filter(c => c.flagged).length,
-    totalLTV: clients.reduce((s, c) => s + c.ltv, 0),
-  }), [clients]);
+  if (selectedId) return <ClientDetail clientId={selectedId} onBack={() => setSelectedId(null)} onChanged={reload} />;
 
+  const selectClass = "px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0B1120] text-sm text-slate-700 dark:text-slate-300";
 
-  const selected = clients.find(c => c.id === selectedId);
-  if (selected) {
-    return (
-      <ClientDetail
-        client={selected}
-        onBack={() => setSelectedId(null)}
-        onUpdate={u => setClients(cs => cs.map(c => c.id === u.id ? u : c))}
-        onDelete={id => { setClients(cs => cs.filter(c => c.id !== id)); setSelectedId(null); }}
-      />
-    );
-  }
-
-  
   return (
     <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-6 pb-10">
-      {/* Header */}
       <motion.div variants={fade} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Platform Users</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Manage global accounts, KYC verifications, and access control.</p>
+          <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Clients</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Customer accounts, identity checks and account standing.</p>
         </div>
-        <button onClick={() => setModal({ type: "add" })} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5">
-          <UserPlus size={18} strokeWidth={2.5} /> Add Client
-        </button>
+        <button onClick={() => setCreating(true)} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/25"><UserPlus size={16} /> Add Client</button>
       </motion.div>
 
-      {/* KPI Cards */}
-      <motion.div variants={fade} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      {issued && <TempPasswordNotice email={issued.email} password={issued.password} onDismiss={() => setIssued(null)} />}
+
+      <motion.div variants={fade} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         {[
-          { label: "Total Users", value: stats.total, color: "blue", icon: Users },
-          { label: "Active", value: stats.active, color: "emerald", icon: CheckCircle2 },
-          { label: "KYC Verified", value: stats.verified, color: "violet", icon: ShieldCheck },
-          { label: "KYC Pending", value: stats.pending, color: "amber", icon: Clock },
-          { label: "Flagged", value: stats.flagged, color: "rose", icon: ShieldAlert },
-          { label: "Global LTV", value: `${(stats.totalLTV / 1000).toFixed(0)}K`, color: "cyan", icon: CreditCard },
-        ].map(({ label, value, color, icon: IconCmp }) => {
-          const styles = ({
-            blue: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20",
-            emerald: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20",
-            violet: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20",
-            amber: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20",
-            rose: "text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20",
-            cyan: "text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-900/20",
-          } as Record<string, string>)[color];
-          
-          return (
-            <Card key={label} className="p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors flex flex-col items-center justify-center text-center">
-              <div className={`w-8 h-8 rounded-lg ${styles} flex items-center justify-center mb-2`}>
-                <IconCmp size={16} />
-              </div>
-              <p className={`text-2xl font-black ${styles.split(' ')[0]} ${styles.split(' ')[1]}`}>{value}</p>
-              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-1">{label}</p>
-            </Card>
-          );
-        })}
+          { label: "Total Users", value: stats?.total, icon: Users, tone: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20" },
+          { label: "Active", value: stats?.active, icon: CheckCircle2, tone: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20" },
+          { label: "KYC Verified", value: stats?.verified, icon: ShieldCheck, tone: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20" },
+          { label: "KYC Pending", value: stats?.pending, icon: Clock, tone: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20" },
+          { label: "Flagged", value: stats?.flagged, icon: ShieldAlert, tone: "text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20" },
+          { label: "Lifetime Value", value: stats ? `${Math.round(stats.lifetime_value / 1000)}K` : undefined, icon: CreditCard, tone: "text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-900/20" },
+        ].map(({ label, value, icon: Ico, tone }) => (
+          <Card key={label} className="p-4">
+            <div className={`w-8 h-8 rounded-lg ${tone} flex items-center justify-center mb-2`}><Ico size={16} /></div>
+            <p className="text-2xl font-black text-slate-900 dark:text-slate-100">{value ?? "—"}</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{label}</p>
+          </Card>
+        ))}
       </motion.div>
 
-      {/* Filters */}
-      <motion.div variants={fade} className="flex flex-col sm:flex-row gap-3 bg-white dark:bg-[#0B1120] p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+      <motion.div variants={fade} className="flex flex-col lg:flex-row gap-3">
         <div className="relative flex-1">
-          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, email, phone, ID…"
-            className="w-full pl-12 pr-4 py-2.5 rounded-xl bg-transparent text-slate-900 dark:text-slate-100 text-sm focus:outline-none placeholder:text-slate-400 dark:placeholder:text-slate-600" />
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input value={search} onChange={e => setSearch(e.target.value)} aria-label="Search clients" placeholder="Search name, email, phone or ID…"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0B1120] text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
         </div>
-        <div className="flex gap-2 flex-wrap sm:flex-nowrap overflow-x-auto pb-1 sm:pb-0">
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-            className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-300 text-sm font-bold focus:outline-none focus:border-blue-500 transition-all appearance-none cursor-pointer">
-            <option value="All">All Status</option>
-            <option value="Active">Active</option>
-            <option value="Suspended">Suspended</option>
-          </select>
-          <div className="w-px bg-slate-200 dark:bg-slate-800 mx-1 flex-shrink-0" />
-          <select value={filterKYC} onChange={e => setFilterKYC(e.target.value)}
-            className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-300 text-sm font-bold focus:outline-none focus:border-blue-500 transition-all appearance-none cursor-pointer">
-            <option value="All">All KYC</option>
-            <option value="Verified">Verified</option>
-            <option value="Pending">Pending</option>
-            <option value="Rejected">Rejected</option>
-          </select>
-          <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-            className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-300 text-sm font-bold focus:outline-none focus:border-blue-500 transition-all appearance-none cursor-pointer">
-            <option value="joined">Sort: Joined</option>
-            <option value="ltv">Sort: LTV ↓</option>
-            <option value="score">Sort: Score ↓</option>
-          </select>
-        </div>
+        <select value={filterKYC} onChange={e => setFilterKYC(e.target.value)} aria-label="Filter by KYC" className={selectClass}>
+          {["All", "Verified", "Pending", "Rejected"].map(k => <option key={k} value={k}>{k === "All" ? "All KYC" : k}</option>)}
+        </select>
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} aria-label="Filter by status" className={selectClass}>
+          {["All", "Active", "Suspended", "Flagged"].map(k => <option key={k} value={k}>{k === "All" ? "All statuses" : k}</option>)}
+        </select>
+        <select value={sortBy} onChange={e => setSortBy(e.target.value)} aria-label="Sort" className={selectClass}>
+          <option value="joined">Newest first</option><option value="ltv">Highest value</option><option value="name">Name</option>
+        </select>
       </motion.div>
 
-      {/* Table */}
       <motion.div variants={fade}>
         <Card className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20">
-                  {["Client", "Contact", "KYC", "Credit", "LTV", "Status", "Actions"].map(h => (
-                    <th key={h} className="px-5 py-4 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <AnimatePresence>
-                  {filtered.length === 0 ? (
-                    <tr><td colSpan={7} className="px-5 py-16 text-center text-slate-400 dark:text-slate-500 text-sm">
-                       <Users size={40} className="mx-auto text-slate-300 dark:text-slate-700 mb-3" />
-                       <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">No clients found matching your criteria.</p>
-                    </td></tr>
-                  ) : filtered.map((c, i) => (
-                    <motion.tr key={c.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ delay: i * 0.04 }}
-                      className="border-b border-slate-50 dark:border-slate-800/60 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors group">
+          <LoadState loading={loading} error={error} onRetry={reload} empty={clients.length === 0 && "No clients match."}>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-slate-800">
+                    {["Client", "Contact", "KYC", "Value", "Completion", "Status", ""].map(h => (
+                      <th key={h} className="px-5 py-3.5 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {clients.map(c => (
+                    <tr key={c.id} className="border-b border-slate-50 dark:border-slate-800/60 hover:bg-slate-50/70 dark:hover:bg-slate-800/30">
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
                           <Avatar name={c.name} size="sm" flagged={c.flagged} />
                           <div>
-                            <button onClick={() => setSelectedId(c.id)} className="font-bold text-slate-900 dark:text-slate-100 text-sm hover:text-blue-600 dark:hover:text-blue-400 transition-colors block text-left">{c.name}</button>
-                            <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">{c.id}</span>
+                            <button onClick={() => setSelectedId(c.id)} className="font-bold text-slate-900 dark:text-slate-100 text-sm hover:text-blue-600 block text-left">{c.name}</button>
+                            <span className="text-[10px] text-slate-400">{c.reference} · <span className={`font-bold ${TIER_STYLES[c.tier].split(" ")[0]}`}>{c.tier}</span></span>
                           </div>
                         </div>
                       </td>
-                      <td className="px-5 py-4">
-                        <p className="text-xs text-slate-600 dark:text-slate-400 font-medium flex items-center gap-1.5"><Mail size={12} className="text-slate-400" />{c.email}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-500 flex items-center gap-1.5 mt-1"><Phone size={12} className="text-slate-400" />{c.phone}</p>
-                      </td>
+                      <td className="px-5 py-4 text-xs text-slate-600 dark:text-slate-400"><span className="block">{c.email}</span><span className="block">{c.phone}</span></td>
                       <td className="px-5 py-4"><Badge label={c.kyc} style={KYC_STYLES[c.kyc]} /></td>
-                      <td className="px-5 py-4 min-w-[120px]"><ScoreBar score={c.creditScore} /></td>
-                      <td className="px-5 py-4">
-                        <p className="text-sm font-black text-slate-900 dark:text-slate-100">KSh {c.ltv.toLocaleString()}</p>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{c.bookings} booking{c.bookings !== 1 ? "s" : ""}</p>
-                      </td>
+                      <td className="px-5 py-4 text-sm font-bold text-slate-900 dark:text-slate-100">{ksh(c.ltv)}<span className="block text-[10px] font-medium text-slate-400">{c.bookings_count} booking{c.bookings_count === 1 ? "" : "s"}</span></td>
+                      <td className="px-5 py-4 w-36"><RateBar rate={c.completion_rate} /></td>
                       <td className="px-5 py-4"><Badge label={c.status} style={STATUS_STYLES[c.status]} /></td>
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => setSelectedId(c.id)} title="View" className="p-2 rounded-lg bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-blue-500 hover:border-blue-300 dark:hover:border-blue-800 transition-colors shadow-sm"><Eye size={14} /></button>
-                          <button onClick={() => setModal({ type: "edit", payload: c })} title="Edit" className="p-2 rounded-lg bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-blue-500 hover:border-blue-300 dark:hover:border-blue-800 transition-colors shadow-sm"><Edit3 size={14} /></button>
-                          <button onClick={() => setModal({ type: "confirm_delete", payload: c })} title="Delete" className="p-2 rounded-lg bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-500 hover:border-rose-300 dark:hover:border-rose-800 transition-colors shadow-sm"><Trash2 size={14} /></button>
-                        </div>
-                      </td>
-                    </motion.tr>
+                      <td className="px-5 py-4 text-right"><button onClick={() => setSelectedId(c.id)} aria-label={`Open ${c.name}`} className="p-2 rounded-lg text-slate-400 hover:text-blue-500"><ChevronRight size={16} /></button></td>
+                    </tr>
                   ))}
-                </AnimatePresence>
-              </tbody>
-            </table>
-          </div>
-          <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/20">
-            <p className="text-xs font-medium text-slate-400 dark:text-slate-500">Showing <span className="text-slate-700 dark:text-slate-300">{filtered.length}</span> of {clients.length} users</p>
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 bg-slate-200 dark:bg-slate-800 px-2 py-1 rounded">Super Admin</p>
-          </div>
+                </tbody>
+              </table>
+            </div>
+          </LoadState>
         </Card>
       </motion.div>
 
-      {/* List Modals */}
-      {modal?.type === "add" && <Modal title="Add New Client" onClose={() => setModal(null)} wide><ClientForm onSave={c => { setClients(cs => [...cs, c]); setModal(null); }} onClose={() => setModal(null)} /></Modal>}
-      {modal?.type === "edit" && <Modal title="Edit Client Profile" onClose={() => setModal(null)} wide><ClientForm initial={modal.payload} onSave={c => { setClients(cs => cs.map(x => x.id === c.id ? c : x)); setModal(null); }} onClose={() => setModal(null)} /></Modal>}
-      {modal?.type === "confirm_delete" && <Confirm message={`Permanently delete account for ${modal.payload?.name}? All data will be lost.`} onConfirm={() => { setClients(cs => cs.filter(c => c.id !== modal.payload.id)); setModal(null); }} onCancel={() => setModal(null)} danger />}
+      <AnimatePresence>
+        {creating && <Modal title="Add New Client" onClose={() => setCreating(false)} wide><ClientFormView initial={null} onClose={() => setCreating(false)} onSaved={(c, password) => { setCreating(false); if (password) setIssued({ email: c.email, password }); reload(); }} /></Modal>}
+      </AnimatePresence>
     </motion.div>
   );
 }

@@ -104,9 +104,8 @@ const NAV_ITEMS: Record<string, NavItem[]> = {
     { icon: "TicketPercent", label: "Promotions", id: "dealer-promotions" }, // Create dealer-specific discount codes
     
     // Support & Configuration
-    { icon: "LifeBuoy", label: "Help Center", id: "support" },
-    { icon: "Settings", label: "Profile", id: "settings" },
-    {icon: "UserCog", label: "Account Settings", id: "account-settings" }, // Business info, payment details, and communication preferences
+    { icon: "LifeBuoy", label: "Help & Support", id: "dealer-support" },
+    { icon: "Settings", label: "Plan & Compliance", id: "dealer-account" }, // Subscription plan, charges and compliance documents
   ],
 
 

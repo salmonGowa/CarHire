@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\VehicleRequest;
 use App\Http\Resources\VehicleResource;
 use App\Models\AuditLog;
+use App\Models\Dealer;
 use App\Models\Vehicle;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -41,11 +42,11 @@ class VehicleController extends Controller
     {
         Gate::authorize('create', Vehicle::class);
         $user = $request->user();
+        $dealer = Dealer::with('plan')->findOrFail($user->isSuperAdmin() ? $request->integer('dealer_id') : $user->dealer_id);
+        abort_unless($dealer->canAddVehicle(), 422,
+            "The {$dealer->plan?->name} plan allows {$dealer->plan?->vehicle_limit} vehicles. Upgrade the plan to add more.");
 
-        $vehicle = Vehicle::create([
-            ...$request->validated(),
-            'dealer_id' => $user->isSuperAdmin() ? $request->integer('dealer_id') : $user->dealer_id,
-        ]);
+        $vehicle = Vehicle::create([...$request->validated(), 'dealer_id' => $dealer->id]);
 
         AuditLog::record('vehicle.created', "Added vehicle {$vehicle->plate} ({$vehicle->model})", $vehicle);
 

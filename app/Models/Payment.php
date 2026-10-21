@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
+use App\Support\Settings;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -46,7 +47,7 @@ class Payment extends Model
     {
         $vatRate = (float) config('drivefleet.vat_rate');
         $vat = (int) round($amount * $vatRate / (1 + $vatRate));
-        $commission = (int) round(($amount - $vat) * (float) config('drivefleet.commission_rate'));
+        $commission = (int) round(($amount - $vat) * (float) Settings::get('commission_rate'));
 
         return ['vat' => $vat, 'commission' => $commission];
     }

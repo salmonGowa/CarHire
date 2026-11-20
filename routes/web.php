@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\CustomerAccountController;
 use App\Http\Controllers\Api\CustomerAccountController;
+use App\Http\Controllers\Api\CustomerAccountController;
 use App\Http\Controllers\Api\DealerCustomerController;
 use App\Http\Controllers\Api\DealerDocumentController;
 use App\Http\Controllers\Api\DriverController;
@@ -18,14 +19,17 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PayoutController;
+use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\PromotionController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\SavedVehicleController;
+use App\Http\Controllers\Api\SearchController;
 use App\Http\Controllers\Api\SearchController;
 use App\Http\Controllers\Api\StatsController;
 use App\Http\Controllers\Api\SupportTicketController;
@@ -45,6 +49,7 @@ Route::prefix('api/auth')->group(function () {
 
 Route::prefix('api')->middleware('auth')->group(function () {
     Route::get('stats', StatsController::class);
+    Route::get('search', SearchController::class);
     Route::get('search', SearchController::class);
 
     // Fleet management (dealer staff and super admins; scoped by VehiclePolicy).
@@ -156,12 +161,31 @@ Route::prefix('api')->middleware('auth')->group(function () {
         Route::get('trips/current', [CustomerAccountController::class, 'currentTrip']);
     });
 
+    // The signed-in user's own account.
+    Route::get('profile', [ProfileController::class, 'show']);
+    Route::put('profile', [ProfileController::class, 'update']);
+    Route::put('profile/preferences', [ProfileController::class, 'preferences']);
+    Route::put('profile/password', [ProfileController::class, 'password']);
+    Route::post('profile/sign-out-others', [ProfileController::class, 'signOutOthers']);
+    Route::delete('profile', [ProfileController::class, 'destroy']);
+    Route::post('profile/documents', [ProfileController::class, 'uploadDocument']);
+    Route::delete('profile/documents/{document}', [ProfileController::class, 'deleteDocument']);
+    Route::get('documents/{document}/file', [ProfileController::class, 'downloadDocument']);
+    Route::get('notifications', [NotificationController::class, 'index']);
+    Route::post('notifications/read-all', [NotificationController::class, 'readAll']);
+    Route::post('notifications/{id}/read', [NotificationController::class, 'read']);
+    Route::middleware('role:customer')->group(function () {
+        Route::get('rewards', [CustomerAccountController::class, 'rewards']);
+        Route::get('trips/current', [CustomerAccountController::class, 'currentTrip']);
+    });
+
     // Support tickets: everyone signed in; visibility is scoped in the controller.
     Route::get('support-tickets', [SupportTicketController::class, 'index']);
     Route::post('support-tickets', [SupportTicketController::class, 'store']);
     Route::get('support-tickets/{ticket}', [SupportTicketController::class, 'show']);
     Route::post('support-tickets/{ticket}/messages', [SupportTicketController::class, 'reply']);
     Route::patch('support-tickets/{ticket}', [SupportTicketController::class, 'update']);
+    Route::get('support-attachments/{attachment}', [SupportTicketController::class, 'attachment']);
     Route::get('support-attachments/{attachment}', [SupportTicketController::class, 'attachment']);
     Route::get('support-attachments/{attachment}', [SupportTicketController::class, 'attachment']);
     Route::get('support-attachments/{attachment}', [SupportTicketController::class, 'attachment']);
@@ -212,6 +236,7 @@ Route::prefix('api')->middleware('auth')->group(function () {
         Route::put('dealers/{dealer}', [Admin\DealerAdminController::class, 'update']);
         Route::delete('dealers/{dealer}', [Admin\DealerAdminController::class, 'destroy']);
         Route::post('dealers/{dealer}/staff', [Admin\DealerAdminController::class, 'addStaff']);
+        Route::patch('dealers/{dealer}/staff/{user}', [Admin\DealerAdminController::class, 'updateStaff']);
         Route::get('clients', [Admin\ClientAdminController::class, 'index']);
         Route::post('clients', [Admin\ClientAdminController::class, 'store']);
         Route::get('clients/{client}', [Admin\ClientAdminController::class, 'show']);

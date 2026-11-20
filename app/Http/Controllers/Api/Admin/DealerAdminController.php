@@ -108,15 +108,26 @@ class DealerAdminController extends Controller
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'phone' => ['nullable', 'string', 'max:30'],
             'job_title' => ['required', 'string', 'max:80'],
+            'dealer_role' => ['nullable', Rule::in(['manager', 'staff'])],
         ]);
-        $limit = $dealer->plan?->staff_limit;
-        if ($limit !== null && $dealer->staff()->count() >= $limit) {
-            abort(422, "The {$dealer->plan->name} plan allows {$limit} staff logins. Upgrade the plan to add more.");
+        if ($reason = $dealer->staffLimitReached()) {
+            abort(422, $reason);
         }
-        [$user, $password] = $this->createAccount(UserRole::Dealer, [...$data, 'dealer_id' => $dealer->id, 'company' => $dealer->name]);
+        [$user, $password] = $this->createAccount(UserRole::Dealer, [...$data, 'dealer_role' => $data['dealer_role'] ?? 'staff', 'dealer_id' => $dealer->id, 'company' => $dealer->name]);
         AuditLog::record('dealer.staff_added', "Added {$user->email} to {$dealer->name}", $dealer);
 
         return response()->json(['data' => $this->presentStaff($user), 'temporary_password' => $password], 201);
+    }
+
+    /** Promote a dealer's login to manager, or back to staff. */
+    public function updateStaff(Request $request, Dealer $dealer, User $user): JsonResponse
+    {
+        abort_unless($user->dealer_id === $dealer->id, 404);
+        $data = $request->validate(['dealer_role' => ['required', Rule::in(['manager', 'staff'])]]);
+        $user->update($data);
+        AuditLog::record('dealer.staff_role', "{$user->email} is now a {$data['dealer_role']} at {$dealer->name}", $user);
+
+        return response()->json(['data' => $this->presentStaff($user)]);
     }
 
     /** @return array<string, mixed> */
@@ -170,6 +181,7 @@ class DealerAdminController extends Controller
             'phone' => $u->phone,
             'job_title' => $u->job_title,
             'role' => $u->role->value,
+            'dealer_role' => $u->dealer_role,
             'status' => $u->isDisabled() ? 'suspended' : 'active',
             'joined' => $u->created_at->toIso8601String(),
             'last_login_at' => $u->last_login_at?->toIso8601String(),

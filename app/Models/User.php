@@ -15,7 +15,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
 #[Fillable([
-    'name', 'email', 'password', 'role', 'phone', 'company', 'dealer_id', 'job_title', 'alt_phone', 'national_id', 'kra_pin',
+    'name', 'email', 'password', 'role', 'phone', 'company', 'dealer_id', 'dealer_role', 'job_title', 'alt_phone', 'national_id', 'kra_pin',
     'date_of_birth', 'gender', 'address', 'county', 'kyc_status', 'kyc_reviewed_at', 'kyc_reviewed_by', 'kyc_note',
     'flagged_at', 'admin_notes', 'disabled_at', 'last_login_at', 'licence_number', 'licence_expires_on', 'preferences',
 ])]
@@ -88,6 +88,12 @@ class User extends Authenticatable
     public function preference(string $key, mixed $default = null): mixed
     {
         return ($this->preferences ?? [])[$key] ?? $default;
+    }
+
+    /** Dealer staff who can manage their dealership's other logins. */
+    public function isDealerManager(): bool
+    {
+        return $this->isDealer() && $this->dealer_id !== null && $this->dealer_role === 'manager';
     }
 
     public function isDisabled(): bool

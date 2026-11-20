@@ -62,6 +62,16 @@ class Dealer extends Model
         return $this->hasMany(SubscriptionCharge::class);
     }
 
+    /** Whether the dealer's plan leaves room for another staff login (null when it does, else the reason). */
+    public function staffLimitReached(): ?string
+    {
+        $limit = $this->plan?->staff_limit;
+
+        return $limit !== null && $this->staff()->count() >= $limit
+            ? "The {$this->plan->name} plan allows {$limit} staff logins. Upgrade the plan to add more."
+            : null;
+    }
+
     /** Whether the dealer's plan leaves room for another vehicle. */
     public function canAddVehicle(): bool
     {

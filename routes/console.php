@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\BookingReminders;
 use App\Services\PlatformAlerts;
 use App\Services\SubscriptionBilling;
 use Illuminate\Foundation\Inspiring;
@@ -21,3 +22,10 @@ Schedule::command('drivefleet:bill-subscriptions')->monthlyOn(1, '06:00');
 
 // Lets the admin Integrations page show whether the scheduler is alive.
 Schedule::call(fn () => Cache::put(PlatformAlerts::SCHEDULER_HEARTBEAT, now(), now()->addDay()))->everyMinute()->name('scheduler-heartbeat');
+
+Artisan::command('drivefleet:send-reminders', function (BookingReminders $reminders) {
+    $sent = $reminders->send();
+    $this->info("Sent {$sent['pickup']} pickup, {$sent['return']} return and {$sent['overdue']} overdue reminders.");
+})->purpose('Text and email pickup, return and overdue reminders');
+
+Schedule::command('drivefleet:send-reminders')->everyFifteenMinutes()->withoutOverlapping();

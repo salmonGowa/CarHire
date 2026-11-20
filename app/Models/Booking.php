@@ -16,7 +16,7 @@ use Illuminate\Support\Str;
 
 #[Fillable([
     'reference', 'dealer_id', 'vehicle_id', 'customer_id', 'created_by', 'driver_id', 'promotion_id', 'discount',
-    'agreement_type', 'agreement_signed_at', 'review', 'rated_at', 'review_reply', 'replied_at',
+    'agreement_type', 'agreement_signed_at', 'review', 'rated_at', 'review_reply', 'replied_at', 'pickup_reminded_at', 'return_reminded_at', 'overdue_notified_at',
     'customer_name', 'customer_email', 'customer_phone', 'customer_id_number',
     'pickup_at', 'return_at', 'pickup_location', 'days', 'daily_rate', 'subtotal', 'vat', 'total',
     'payment_method', 'status', 'rating', 'cancelled_at',
@@ -42,6 +42,9 @@ class Booking extends Model
             'cancelled_at' => 'datetime',
             'agreement_signed_at' => 'datetime',
             'rated_at' => 'datetime',
+            'pickup_reminded_at' => 'datetime',
+            'return_reminded_at' => 'datetime',
+            'overdue_notified_at' => 'datetime',
             'replied_at' => 'datetime',
             'discount' => 'integer',
             'daily_rate' => 'integer',

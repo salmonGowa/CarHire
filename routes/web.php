@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\FinanceController;
 use App\Http\Controllers\Api\Hr;
 use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\Api\MaintenanceController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PayoutController;
 use App\Http\Controllers\Api\PromotionController;
@@ -83,6 +84,11 @@ Route::prefix('api')->middleware('auth')->group(function () {
     Route::get('agreements', [AgreementController::class, 'index']);
     Route::put('bookings/{booking}/agreement', [AgreementController::class, 'update']);
     Route::post('bookings/{booking}/agreement/sign', [AgreementController::class, 'sign']);
+
+    // The signed-in user's own account.
+    Route::get('notifications', [NotificationController::class, 'index']);
+    Route::post('notifications/read-all', [NotificationController::class, 'readAll']);
+    Route::post('notifications/{id}/read', [NotificationController::class, 'read']);
 
     // Support tickets: everyone signed in; visibility is scoped in the controller.
     Route::get('support-tickets', [SupportTicketController::class, 'index']);

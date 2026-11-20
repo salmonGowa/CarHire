@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['support_ticket_id', 'user_id', 'body', 'internal'])]
 class SupportMessage extends Model
@@ -24,5 +25,11 @@ class SupportMessage extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** @return HasMany<SupportAttachment, $this> */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(SupportAttachment::class);
     }
 }

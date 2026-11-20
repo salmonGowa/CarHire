@@ -6,14 +6,18 @@ use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Booking;
+use App\Models\SupportAttachment;
 use App\Models\SupportMessage;
 use App\Models\SupportTicket;
 use App\Models\User;
+use App\Services\Notifier;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Support tickets. Super admins work the whole queue; dealer staff see their
@@ -66,7 +70,7 @@ class SupportTicketController extends Controller
     {
         $user = $request->user();
         $this->authorizeView($user, $ticket);
-        $ticket->load(['user', 'dealer', 'booking.vehicle', 'assignee', 'messages.user']);
+        $ticket->load(['user', 'dealer', 'booking.vehicle', 'assignee', 'messages.user', 'messages.attachments']);
 
         return response()->json(['data' => [
             ...$this->present($ticket),
@@ -81,6 +85,9 @@ class SupportTicketController extends Controller
                     'from_support' => $m->user?->isSuperAdmin() ?? false,
                     'mine' => $m->user_id === $user->id,
                     'at' => $m->created_at->toIso8601String(),
+                    'attachments' => $m->attachments->map(fn (SupportAttachment $a) => [
+                        'id' => $a->id, 'name' => $a->original_name, 'size' => $a->size, 'is_image' => str_starts_with($a->mime_type, 'image/'),
+                    ]),
                 ]),
         ]]);
     }
@@ -94,7 +101,8 @@ class SupportTicketController extends Controller
             'priority' => ['nullable', Rule::in(SupportTicket::PRIORITIES)],
             'body' => ['required', 'string', 'max:5000'],
             'booking_id' => ['nullable', 'integer', 'exists:bookings,id'],
-        ]);
+            ...self::ATTACHMENT_RULES,
+        ], self::ATTACHMENT_MESSAGES);
 
         if (isset($data['booking_id'])) {
             $booking = Booking::findOrFail($data['booking_id']);
@@ -102,7 +110,7 @@ class SupportTicketController extends Controller
             abort_unless($ownsBooking, 422, 'That booking is not yours.');
         }
 
-        $ticket = DB::transaction(function () use ($user, $data) {
+        $ticket = DB::transaction(function () use ($user, $data, $request) {
             $ticket = SupportTicket::create([
                 'user_id' => $user->id,
                 'dealer_id' => $user->isDealer() ? $user->dealer_id : null,
@@ -113,12 +121,17 @@ class SupportTicketController extends Controller
                 'priority' => $data['category'] === 'Roadside Assistance' ? 'urgent' : ($data['priority'] ?? 'medium'),
                 'last_activity_at' => now(),
             ]);
-            $ticket->messages()->create(['user_id' => $user->id, 'body' => $data['body']]);
+            $this->attach($ticket->messages()->create(['user_id' => $user->id, 'body' => $data['body']]), $request);
 
             return $ticket;
         });
 
         AuditLog::record('support.opened', "Opened {$ticket->reference}: {$ticket->subject}", $ticket, $ticket->priority === 'urgent' ? 'warning' : 'info');
+        if ($ticket->priority === 'urgent') {
+            foreach (User::where('role', UserRole::SuperAdmin)->whereNull('disabled_at')->get() as $admin) {
+                app(Notifier::class)->user($admin, "Urgent: {$ticket->subject}", "{$user->name} opened {$ticket->reference} ({$ticket->category}).", '/superadmin-support', 'error');
+            }
+        }
 
         return response()->json(['data' => $this->present($ticket->load(['user', 'dealer', 'booking', 'assignee'])->loadCount('messages'))], 201);
     }
@@ -127,12 +140,12 @@ class SupportTicketController extends Controller
     {
         $user = $request->user();
         $this->authorizeView($user, $ticket);
-        $data = $request->validate(['body' => ['required', 'string', 'max:5000'], 'internal' => ['boolean']]);
+        $data = $request->validate(['body' => ['required', 'string', 'max:5000'], 'internal' => ['boolean'], ...self::ATTACHMENT_RULES], self::ATTACHMENT_MESSAGES);
         $internal = $user->isSuperAdmin() && ($data['internal'] ?? false);
         abort_if($ticket->status === 'closed' && ! $user->isSuperAdmin(), 422, 'This ticket is closed. Open a new one if you still need help.');
 
-        DB::transaction(function () use ($ticket, $user, $data, $internal) {
-            $ticket->messages()->create(['user_id' => $user->id, 'body' => $data['body'], 'internal' => $internal]);
+        DB::transaction(function () use ($ticket, $user, $data, $internal, $request) {
+            $this->attach($ticket->messages()->create(['user_id' => $user->id, 'body' => $data['body'], 'internal' => $internal]), $request);
             if ($internal) {
                 return;
             }
@@ -148,6 +161,15 @@ class SupportTicketController extends Controller
             }
             $ticket->update($changes);
         });
+
+        if (! $internal) {
+            $notifier = app(Notifier::class);
+            if ($user->isSuperAdmin() && $ticket->user_id !== $user->id) {
+                $notifier->user($ticket->user, "Reply on {$ticket->reference}", 'DriveFleet Support: '.str($data['body'])->limit(120), $this->linkFor($ticket->user));
+            } elseif ($ticket->assignee && $ticket->assignee->id !== $user->id) {
+                $notifier->user($ticket->assignee, "New reply on {$ticket->reference}", "{$user->name}: ".str($data['body'])->limit(120), '/superadmin-support');
+            }
+        }
 
         return $this->show($request, $ticket->fresh());
     }
@@ -173,6 +195,45 @@ class SupportTicketController extends Controller
         $ticket->update([...$data, 'last_activity_at' => now()]);
 
         return $this->show($request, $ticket->fresh());
+    }
+
+    public function attachment(Request $request, SupportAttachment $attachment): StreamedResponse
+    {
+        $message = $attachment->message;
+        $this->authorizeView($request->user(), $message->ticket);
+        abort_if($message->internal && ! $request->user()->isSuperAdmin(), 404);
+
+        return Storage::disk('local')->response($attachment->path, $attachment->original_name, ['Content-Type' => $attachment->mime_type],
+            $request->boolean('inline') ? 'inline' : 'attachment');
+    }
+
+    private const ATTACHMENT_RULES = [
+        'attachments' => ['nullable', 'array', 'max:5'],
+        'attachments.*' => ['file', 'max:5120', 'mimes:jpg,jpeg,png,pdf'],
+    ];
+
+    private const ATTACHMENT_MESSAGES = ['attachments.max' => 'Attach up to 5 files.', 'attachments.*.max' => 'Each file can be up to 5 MB.', 'attachments.*.mimes' => 'Attach photos (JPG, PNG) or PDFs.'];
+
+    private function attach(SupportMessage $message, Request $request): void
+    {
+        foreach ($request->file('attachments', []) as $file) {
+            $message->attachments()->create([
+                'path' => $file->store("support/{$message->support_ticket_id}", 'local'),
+                'original_name' => $file->getClientOriginalName(),
+                'mime_type' => $file->getMimeType() ?? 'application/octet-stream',
+                'size' => $file->getSize(),
+            ]);
+        }
+    }
+
+    /** Where a reporter reads their tickets. */
+    private function linkFor(User $user): string
+    {
+        return match (true) {
+            $user->isDealer() => '/dealer-support',
+            $user->isSuperAdmin() => '/superadmin-support',
+            default => '/customer-support',
+        };
     }
 
     /** @return Builder<SupportTicket> */

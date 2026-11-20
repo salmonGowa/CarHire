@@ -127,6 +127,9 @@ decides their dashboard; dealer staff belong to a dealership via `dealer_id`.
 | `/api/auth/forgot-password`, `/api/auth/reset-password`, `/api/auth/email/verification-notification` | guests / signed-in users | password reset by email; resend the confirm-your-email link |
 | `GET /api/notifications` (+ `/{id}/read`, `/read-all`) | everyone signed in | in-app notifications (database channel) for bookings, payments, support replies, KYC and compliance |
 | `GET /api/rewards`, `GET /api/trips/current` | customers | tier and points from paid trips and reviews; the active or next booking |
+| `POST /api/bookings/{id}/handover`, `GET …/return-quote`, `POST …/return`, `POST …/deposit/settle` | dealer staff for the booking, super admins | handover and return inspections (photos on the private disk), return charges, deposit settlement |
+| `POST /api/bookings/{id}/extensions`, `POST /api/booking-extensions/{id}/decide` | the booking's customer / dealer staff | ask for more time; approve or decline |
+| `GET/PUT /api/dealer-policy` | dealer staff (changes: dealer managers) | deposit and return-charge rules |
 | `GET /api/support-attachments/{id}` | ticket participants | photos/PDFs attached to support messages |
 | `GET/PUT /api/admin/settings` | super admins | runtime platform settings (see below); every change is audited |
 | `GET /api/admin/overview`, `/api/admin/reports?period=7d\|30d\|6m\|ytd\|all`, `/api/admin/integrations` | super admins | dashboard, analytics and live system checks |
@@ -156,6 +159,34 @@ locked out of the API and sign-in), sign-in attempts per minute, idle sign-out
 time and support contacts. VAT stays in `config/drivefleet.php`. The app time
 zone defaults to `Africa/Nairobi` (`APP_TIMEZONE`).
 
+### Handover, return, deposits and extensions
+
+Each dealer sets a **rental policy** under Plan & Compliance → Rental Policy;
+customers see it before booking. The defaults are:
+
+| Rule | Default |
+| --- | --- |
+| Security deposit | KSh 10,000 (copied onto each booking when it is made) |
+| Grace period on returns | 60 minutes |
+| Late fee | 10% of the daily rate per started hour, at most one day's rate for each day late |
+| Fuel shortfall | KSh 150 per % of the tank below the pickup level |
+| Mileage | unlimited; when a daily allowance is set, KSh 20 per extra km |
+
+**Hand over keys** records the odometer, fuel, notes, up to 8 photos and the
+deposit received (method and M-PESA/bank reference). **Mark returned** does the
+same at return and shows a live quote of the charges. Late, fuel, mileage and
+any damage amount become invoice lines (plus VAT). The rental price on the
+booking doesn't change. The deposit then pays what's owed, recorded as a "From
+deposit" payment that the platform doesn't collect. Staff record how the rest
+went back. They can instead hold the deposit (for example, while waiting for a
+damage quote) and settle it later. A cancelled booking's deposit is returned in
+full.
+
+Customers can ask for more time from Live Trip. The dealer approves or declines.
+Approving checks the car is still free, then moves the return time and adds the
+extra days to the booking and invoice. Refunds of payments record the method,
+reference and reason. Rentals 24 hours overdue are escalated to super admins.
+
 ### Email, SMS and reminders
 
 Every notification appears in the app (the bell). It is also **emailed** and,
@@ -163,7 +194,8 @@ when time-sensitive, **texted**, according to its category and the customer's
 preferences: booking emails, receipt emails and SMS reminders can each be turned
 off; account, support and compliance emails always go. Texts go out for booking
 confirmations and cancellations, pickup reminders (24 hours ahead), return
-reminders (3 hours ahead) and overdue returns (30 minutes past). Walk-in
+reminders (3 hours ahead), overdue returns (30 minutes past) and extension
+decisions. Walk-in
 customers without an account get the reminders by SMS to the number on the
 booking. `php artisan drivefleet:send-reminders` runs every 15 minutes.
 

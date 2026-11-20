@@ -39,7 +39,13 @@ Route::prefix('api/auth')->group(function () {
     Route::post('login', [AuthController::class, 'login'])->middleware(['guest', 'throttle:login']);
     Route::post('register', [AuthController::class, 'register'])->middleware(['guest', 'throttle:register']);
     Route::post('logout', [AuthController::class, 'logout'])->middleware('auth');
+    Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:password-reset');
+    Route::post('reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:password-reset');
+    Route::post('email/verification-notification', [AuthController::class, 'resendVerification'])->middleware(['auth', 'throttle:6,1']);
 });
+
+// The link in the "confirm your email" message (signed, so no sign-in needed).
+Route::get('email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])->middleware(['signed', 'throttle:6,1'])->name('verification.verify');
 
 Route::prefix('api')->middleware('auth')->group(function () {
     Route::get('stats', StatsController::class);

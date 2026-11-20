@@ -4,6 +4,7 @@ import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import { useAuth } from "./AuthContext";
 import { appConfig } from "@/lib/appConfig";
+import EmailVerificationBanner from "./EmailVerificationBanner";
 import { Wrench } from "lucide-react";
 
 export default function AppLayout() {
@@ -52,6 +53,7 @@ export default function AppLayout() {
             Maintenance mode is on. Customers and dealers are locked out until you turn it off in System Settings.
           </div>
         )}
+        <EmailVerificationBanner />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 relative">
           <Outlet />
         </main>

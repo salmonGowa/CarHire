@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import { appConfig } from "@/lib/appConfig";
 import { ApiError } from "@/lib/api";
@@ -62,6 +62,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState("");
+  // Arriving from a password reset or an email-confirmation link.
+  const [params] = useSearchParams();
+  const notice = params.get("reset") ? "reset" : params.get("verified") ? "verified" : null;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -243,6 +246,12 @@ export default function LoginPage() {
             </button>
           </div>
 
+          {(notice === "reset" || notice === "verified") && (
+            <p role="status" className={`mb-5 p-4 rounded-xl border text-sm ${isDark ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
+              {notice === "reset" ? "Your password has been changed. Sign in with your new password." : "Thanks, your email is confirmed. Sign in to continue."}
+            </p>
+          )}
+
           {appConfig.platform.maintenance_mode && (
             <p role="status" className={`mb-5 p-4 rounded-xl border text-sm ${isDark ? "border-amber-500/30 bg-amber-500/10 text-amber-300" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
               {appConfig.platform.maintenance_message} Only DriveFleet administrators can sign in right now.
@@ -298,13 +307,12 @@ export default function LoginPage() {
                   Remember me
                 </span>
               </label>
-              <button
-                type="button"
-                onClick={() => setError(`Resetting by email isn't available yet. Dealer staff: ask your manager to reset it from Staff & Logins. Customers: contact DriveFleet support${appConfig.platform.support_email ? ` at ${appConfig.platform.support_email}` : ""}.`)}
+              <Link
+                to="/forgot-password"
                 className="text-sm text-blue-600 hover:text-blue-500 hover:underline font-semibold transition-colors"
               >
                 Forgot password?
-              </button>
+              </Link>
             </div>
 
             {error && (

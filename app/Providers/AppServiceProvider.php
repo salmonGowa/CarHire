@@ -2,14 +2,18 @@
 
 namespace App\Providers;
 
+use App\Models\User;
 use App\Services\Sms\AfricasTalkingSmsSender;
 use App\Services\Sms\LogSmsSender;
 use App\Services\Sms\SmsSender;
 use App\Support\Settings;
+use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Events\MigrationsEnded;
 use Illuminate\Foundation\DevCommands;
 use Illuminate\Http\Request;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -52,5 +56,22 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(MigrationsEnded::class, fn () => Settings::flush());
 
         RateLimiter::for('register', fn (Request $request) => Limit::perMinute(10)->by($request->ip()));
+        RateLimiter::for('password-reset', fn (Request $request) => Limit::perMinute(5)->by(Str::lower((string) $request->input('email')).'|'.$request->ip()));
+
+        // Reset links open the SPA's reset page rather than a Blade view.
+        ResetPassword::createUrlUsing(fn (User $user, string $token) => url('/reset-password?'.http_build_query(['token' => $token, 'email' => $user->getEmailForPasswordReset()])));
+        ResetPassword::toMailUsing(fn (User $user, string $token) => (new MailMessage)
+            ->subject('Reset your DriveFleet password')
+            ->greeting('Hi '.Str::before($user->name, ' ').',')
+            ->line('We received a request to reset the password for your DriveFleet account.')
+            ->action('Choose a new password', url('/reset-password?'.http_build_query(['token' => $token, 'email' => $user->getEmailForPasswordReset()])))
+            ->line('The link expires in 60 minutes. If you didn\'t ask for this, you can ignore this email; your password won\'t change.')
+            ->salutation('— The DriveFleet team'));
+        VerifyEmail::toMailUsing(fn (User $user, string $url) => (new MailMessage)
+            ->subject('Confirm your email for DriveFleet')
+            ->greeting('Welcome, '.Str::before($user->name, ' ').'!')
+            ->line('Please confirm this is your email address so we can send you booking confirmations and receipts.')
+            ->action('Confirm email', $url)
+            ->salutation('— The DriveFleet team'));
     }
 }

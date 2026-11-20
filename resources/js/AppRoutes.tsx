@@ -13,6 +13,8 @@ import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import HRDashboard from "./pages/HRDashboard";
 import DealerDashboard from "./pages/DealerDashboard";
 import CustomerDashboard from "./pages/CustomerDashboard";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 
 // Customer Components
 import CustomerProfile from "./components/CustomerComponents/CustomerProfile";
@@ -103,6 +105,8 @@ export default function App() {
             {/* Public Routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/" element={<LandingPage />} />
             <Route path="/home" element={<Navigate to="/" replace />} />
 

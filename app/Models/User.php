@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\UserRole;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -19,7 +20,7 @@ use Illuminate\Notifications\Notifiable;
     'flagged_at', 'admin_notes', 'disabled_at', 'last_login_at', 'licence_number', 'licence_expires_on', 'preferences',
 ])]
 #[Hidden(['password', 'remember_token'])]
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
@@ -123,7 +124,7 @@ class User extends Authenticatable
     /**
      * The fields the React app receives about the signed-in user.
      *
-     * @return array{id: int, name: string, email: string, role: string, dealer: array{id: int, name: string}|null}
+     * @return array{id: int, name: string, email: string, role: string, email_verified: bool, dealer: array{id: int, name: string}|null}
      */
     public function toFrontend(): array
     {
@@ -132,6 +133,7 @@ class User extends Authenticatable
             'name' => $this->name,
             'email' => $this->email,
             'role' => $this->role->value,
+            'email_verified' => $this->hasVerifiedEmail(),
             'dealer' => $this->dealer ? ['id' => $this->dealer->id, 'name' => $this->dealer->name] : null,
         ];
     }

@@ -9,6 +9,7 @@ export interface User {
   email: string;
   name: string;
   role: UserRole;
+  email_verified: boolean;
 }
 
 export interface RegisterInput {

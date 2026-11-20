@@ -5,31 +5,21 @@ use App\Http\Controllers\Api\AgreementController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\CustomerAccountController;
-use App\Http\Controllers\Api\CustomerAccountController;
-use App\Http\Controllers\Api\CustomerAccountController;
 use App\Http\Controllers\Api\DealerCustomerController;
 use App\Http\Controllers\Api\DealerDocumentController;
+use App\Http\Controllers\Api\DealerStaffController;
 use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\FinanceController;
 use App\Http\Controllers\Api\Hr;
 use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\Api\MaintenanceController;
 use App\Http\Controllers\Api\NotificationController;
-use App\Http\Controllers\Api\NotificationController;
-use App\Http\Controllers\Api\NotificationController;
-use App\Http\Controllers\Api\NotificationController;
-use App\Http\Controllers\Api\NotificationController;
-use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PayoutController;
-use App\Http\Controllers\Api\ProfileController;
-use App\Http\Controllers\Api\ProfileController;
-use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\PromotionController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\SavedVehicleController;
-use App\Http\Controllers\Api\SearchController;
 use App\Http\Controllers\Api\SearchController;
 use App\Http\Controllers\Api\StatsController;
 use App\Http\Controllers\Api\SupportTicketController;
@@ -49,7 +39,6 @@ Route::prefix('api/auth')->group(function () {
 
 Route::prefix('api')->middleware('auth')->group(function () {
     Route::get('stats', StatsController::class);
-    Route::get('search', SearchController::class);
     Route::get('search', SearchController::class);
 
     // Fleet management (dealer staff and super admins; scoped by VehiclePolicy).
@@ -102,66 +91,6 @@ Route::prefix('api')->middleware('auth')->group(function () {
     Route::post('bookings/{booking}/agreement/sign', [AgreementController::class, 'sign']);
 
     // The signed-in user's own account.
-    Route::get('notifications', [NotificationController::class, 'index']);
-    Route::post('notifications/read-all', [NotificationController::class, 'readAll']);
-    Route::post('notifications/{id}/read', [NotificationController::class, 'read']);
-
-    // The signed-in user's own account.
-    Route::get('notifications', [NotificationController::class, 'index']);
-    Route::post('notifications/read-all', [NotificationController::class, 'readAll']);
-    Route::post('notifications/{id}/read', [NotificationController::class, 'read']);
-
-    // The signed-in user's own account.
-    Route::get('profile', [ProfileController::class, 'show']);
-    Route::put('profile', [ProfileController::class, 'update']);
-    Route::put('profile/preferences', [ProfileController::class, 'preferences']);
-    Route::put('profile/password', [ProfileController::class, 'password']);
-    Route::post('profile/sign-out-others', [ProfileController::class, 'signOutOthers']);
-    Route::delete('profile', [ProfileController::class, 'destroy']);
-    Route::post('profile/documents', [ProfileController::class, 'uploadDocument']);
-    Route::delete('profile/documents/{document}', [ProfileController::class, 'deleteDocument']);
-    Route::get('documents/{document}/file', [ProfileController::class, 'downloadDocument']);
-    Route::get('notifications', [NotificationController::class, 'index']);
-    Route::post('notifications/read-all', [NotificationController::class, 'readAll']);
-    Route::post('notifications/{id}/read', [NotificationController::class, 'read']);
-
-    // The signed-in user's own account.
-    Route::get('profile', [ProfileController::class, 'show']);
-    Route::put('profile', [ProfileController::class, 'update']);
-    Route::put('profile/preferences', [ProfileController::class, 'preferences']);
-    Route::put('profile/password', [ProfileController::class, 'password']);
-    Route::post('profile/sign-out-others', [ProfileController::class, 'signOutOthers']);
-    Route::delete('profile', [ProfileController::class, 'destroy']);
-    Route::post('profile/documents', [ProfileController::class, 'uploadDocument']);
-    Route::delete('profile/documents/{document}', [ProfileController::class, 'deleteDocument']);
-    Route::get('documents/{document}/file', [ProfileController::class, 'downloadDocument']);
-    Route::get('notifications', [NotificationController::class, 'index']);
-    Route::post('notifications/read-all', [NotificationController::class, 'readAll']);
-    Route::post('notifications/{id}/read', [NotificationController::class, 'read']);
-    Route::middleware('role:customer')->group(function () {
-        Route::get('rewards', [CustomerAccountController::class, 'rewards']);
-        Route::get('trips/current', [CustomerAccountController::class, 'currentTrip']);
-    });
-
-    // The signed-in user's own account.
-    Route::get('profile', [ProfileController::class, 'show']);
-    Route::put('profile', [ProfileController::class, 'update']);
-    Route::put('profile/preferences', [ProfileController::class, 'preferences']);
-    Route::put('profile/password', [ProfileController::class, 'password']);
-    Route::post('profile/sign-out-others', [ProfileController::class, 'signOutOthers']);
-    Route::delete('profile', [ProfileController::class, 'destroy']);
-    Route::post('profile/documents', [ProfileController::class, 'uploadDocument']);
-    Route::delete('profile/documents/{document}', [ProfileController::class, 'deleteDocument']);
-    Route::get('documents/{document}/file', [ProfileController::class, 'downloadDocument']);
-    Route::get('notifications', [NotificationController::class, 'index']);
-    Route::post('notifications/read-all', [NotificationController::class, 'readAll']);
-    Route::post('notifications/{id}/read', [NotificationController::class, 'read']);
-    Route::middleware('role:customer')->group(function () {
-        Route::get('rewards', [CustomerAccountController::class, 'rewards']);
-        Route::get('trips/current', [CustomerAccountController::class, 'currentTrip']);
-    });
-
-    // The signed-in user's own account.
     Route::get('profile', [ProfileController::class, 'show']);
     Route::put('profile', [ProfileController::class, 'update']);
     Route::put('profile/preferences', [ProfileController::class, 'preferences']);
@@ -186,14 +115,14 @@ Route::prefix('api')->middleware('auth')->group(function () {
     Route::post('support-tickets/{ticket}/messages', [SupportTicketController::class, 'reply']);
     Route::patch('support-tickets/{ticket}', [SupportTicketController::class, 'update']);
     Route::get('support-attachments/{attachment}', [SupportTicketController::class, 'attachment']);
-    Route::get('support-attachments/{attachment}', [SupportTicketController::class, 'attachment']);
-    Route::get('support-attachments/{attachment}', [SupportTicketController::class, 'attachment']);
-    Route::get('support-attachments/{attachment}', [SupportTicketController::class, 'attachment']);
-    Route::get('support-attachments/{attachment}', [SupportTicketController::class, 'attachment']);
 
     // The dealer's own account: plan, charges and compliance documents.
     Route::middleware('role:dealer')->group(function () {
         Route::get('subscription', [Admin\SubscriptionController::class, 'mine']);
+        Route::get('dealer-staff', [DealerStaffController::class, 'index']);
+        Route::post('dealer-staff', [DealerStaffController::class, 'store']);
+        Route::patch('dealer-staff/{staff}', [DealerStaffController::class, 'update']);
+        Route::post('dealer-staff/{staff}/reset-password', [DealerStaffController::class, 'resetPassword']);
         Route::get('dealer-documents', [DealerDocumentController::class, 'index']);
         Route::post('dealer-documents', [DealerDocumentController::class, 'store']);
         Route::post('dealer-documents/{document}/file', [DealerDocumentController::class, 'upload']);

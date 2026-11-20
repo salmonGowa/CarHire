@@ -33,10 +33,10 @@ class AdminSeeder extends Seeder
         // Extra dealer staff and internal platform staff.
         $account = fn (string $email, array $attrs) => User::updateOrCreate(['email' => $email], [...$attrs, 'password' => 'password', 'email_verified_at' => now()]);
         $swift = Dealer::where('name', 'Swift Car Hire')->first();
-        User::where('email', 'dealer@drivefleet.test')->update(['job_title' => 'Branch Manager']);
-        User::where('email', 'premier@drivefleet.test')->update(['job_title' => 'Operations Lead']);
-        $account('faith.njeri@swiftcarhire.co.ke', ['name' => 'Faith Njeri', 'role' => UserRole::Dealer, 'dealer_id' => $swift->id, 'company' => $swift->name, 'job_title' => 'Fleet Coordinator', 'last_login_at' => now()->subDays(2)]);
-        $account('moses.k@swiftcarhire.co.ke', ['name' => 'Moses Kiprotich', 'role' => UserRole::Dealer, 'dealer_id' => $swift->id, 'company' => $swift->name, 'job_title' => 'Sales Agent', 'disabled_at' => now()->subWeeks(2)]);
+        User::where('email', 'dealer@drivefleet.test')->update(['job_title' => 'Branch Manager', 'dealer_role' => 'manager']);
+        User::where('email', 'premier@drivefleet.test')->update(['job_title' => 'Operations Lead', 'dealer_role' => 'manager']);
+        $account('faith.njeri@swiftcarhire.co.ke', ['name' => 'Faith Njeri', 'role' => UserRole::Dealer, 'dealer_role' => 'staff', 'dealer_id' => $swift->id, 'company' => $swift->name, 'job_title' => 'Fleet Coordinator', 'last_login_at' => now()->subDays(2)]);
+        $account('moses.k@swiftcarhire.co.ke', ['name' => 'Moses Kiprotich', 'role' => UserRole::Dealer, 'dealer_role' => 'staff', 'dealer_id' => $swift->id, 'company' => $swift->name, 'job_title' => 'Sales Agent', 'disabled_at' => now()->subWeeks(2)]);
 
         User::where('email', 'superadmin@drivefleet.test')->update(['job_title' => 'System Administrator', 'last_login_at' => now()->subHours(3)]);
         User::where('email', 'hr@drivefleet.test')->update(['job_title' => 'HR Manager', 'last_login_at' => now()->subDay()]);

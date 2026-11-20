@@ -41,10 +41,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // `php artisan dev` runs the Laravel server and Vite together. The app
-        // has no queued jobs yet, so skip the queue worker (it needs a database).
-        DevCommands::except('queue');
-        // Run scheduled tasks (monthly subscription billing, heartbeat) alongside the dev server.
+        // `php artisan dev` runs the server, Vite, a queue worker (emails and texts)
+        // and the scheduler (billing, reminders) together.
         DevCommands::artisan('schedule:work', 'scheduler');
 
         // Login attempts are limited per email + IP, so one person mistyping

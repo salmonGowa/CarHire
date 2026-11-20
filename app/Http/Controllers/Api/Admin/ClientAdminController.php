@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\Payment;
 use App\Models\User;
+use App\Support\CustomerTier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -21,9 +22,6 @@ use Illuminate\Validation\Rule;
 class ClientAdminController extends Controller
 {
     use CreatesAccounts;
-
-    /** Loyalty tier by lifetime paid value (KSh). */
-    public const TIERS = [500000 => 'Platinum', 150000 => 'Gold', 50000 => 'Silver', 0 => 'Bronze'];
 
     public function index(Request $request): JsonResponse
     {
@@ -197,7 +195,7 @@ class ClientAdminController extends Controller
             'kyc_reviewer' => $u->kycReviewer?->name,
             'kyc_note' => $u->kyc_note,
             'ltv' => $ltv,
-            'tier' => collect(self::TIERS)->first(fn ($name, $min) => $ltv >= $min),
+            'tier' => CustomerTier::for($ltv),
             'bookings_count' => (int) $u->booking_count,
             'completed_trips' => (int) $u->completed_count,
             // Share of finished bookings that were completed rather than cancelled.

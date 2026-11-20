@@ -93,7 +93,7 @@ const NAV_ITEMS: Record<string, NavItem[]> = {
     
     // Workforce Management
     { icon: "UserCheck", label: "Drivers", id: "dealer-drivers" }, // Manage assigned drivers for the fleet [cite: 581]
-    { icon: "UsersRound", label: "Staff & HR", id: "dealer-staff" }, // Dealer-specific staff and payroll (PAYE/NHIF/NSSF) bado
+    { icon: "UsersRound", label: "Staff & Logins", id: "dealer-staff" }, // Who at the dealership can sign in; managers add and suspend logins
     
     // Financials & Compliance
     { icon: "DollarSign", label: "Earnings", id: "dealer-earnings" },

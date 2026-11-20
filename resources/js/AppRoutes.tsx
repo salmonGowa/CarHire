@@ -59,6 +59,7 @@ import SuperAdminIntegrations from "./components/SuperAdminComponents/SuperAdmin
 import SuperAdminCompliance from "./components/SuperAdminComponents/SuperAdminCompliance";
 import DealerAccount from "./components/AdminComponents/DealerAccount";
 import DealerSupport from "./components/AdminComponents/DealerSupport";
+import DealerStaff from "./components/AdminComponents/DealerStaff";
 import CustomerFileComplaint from "./components/CustomerComponents/CustomerFileComplaint";
 
 // Super Admin Components (Make sure paths match your folder structure)
@@ -147,6 +148,7 @@ export default function App() {
               <Route path="admin-add-booking" element={<AdminAddBooking />} />
               <Route path="dealer-account" element={<DealerAccount />} />
               <Route path="dealer-support" element={<DealerSupport />} />
+              <Route path="dealer-staff" element={<DealerStaff />} />
 
 
               {/* HR Exclusive Routes */}

@@ -176,8 +176,8 @@ const DealerFormView = ({ initial, onSaved, onClose }: { initial: AdminDealer | 
 // ─── Add staff form ─────────────────────────────────────────────────────────
 const STAFF_LABELS = { name: "Full Name", email: "Email (used to sign in)", phone: "Phone", job_title: "Role / Position" } as const;
 
-const StaffForm = ({ dealerId, onCreated, onClose }: { dealerId: number; onCreated: (staff: AccountSummary, password: string) => void; onClose: () => void }) => {
-  const [form, setForm] = useState({ name: "", email: "", phone: "", job_title: "" });
+const StaffForm = ({ dealerId, firstLogin, onCreated, onClose }: { dealerId: number; firstLogin: boolean; onCreated: (staff: AccountSummary, password: string) => void; onClose: () => void }) => {
+  const [form, setForm] = useState({ name: "", email: "", phone: "", job_title: "", dealer_role: firstLogin ? "manager" : "staff" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const save = async () => {
@@ -198,6 +198,12 @@ const StaffForm = ({ dealerId, onCreated, onClose }: { dealerId: number; onCreat
           <input type={k === "email" ? "email" : "text"} value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} className={inputClass} required={k !== "phone"} />
         </Field>
       ))}
+      <Field label="Access">
+        <select value={form.dealer_role} onChange={(e) => setForm({ ...form, dealer_role: e.target.value })} className={inputClass}>
+          <option value="manager">Manager: can add and suspend the dealer's staff logins</option>
+          <option value="staff">Staff: day-to-day bookings and fleet</option>
+        </select>
+      </Field>
       <p className="text-xs text-slate-500">This creates a dealer login. You'll get a temporary password to pass on.</p>
       {errors.form && <p className="text-sm text-rose-600 dark:text-rose-400">{errors.form}</p>}
       <div className="flex gap-3 justify-end pt-2">
@@ -237,6 +243,15 @@ const DealerDetail = ({ dealerId, onBack, onChanged }: { dealerId: number; onBac
       await api(`/api/admin/dealers/${dealer.id}`, { method: "DELETE" });
       onChanged();
       onBack();
+    } catch (err) {
+      setMessage(errorMessage(err));
+    }
+  };
+
+  const toggleRole = async (s: AccountSummary) => {
+    try {
+      await api(`/api/admin/dealers/${dealer.id}/staff/${s.id}`, { method: "PATCH", body: { dealer_role: s.dealer_role === "manager" ? "staff" : "manager" } });
+      reload();
     } catch (err) {
       setMessage(errorMessage(err));
     }
@@ -355,12 +370,13 @@ const DealerDetail = ({ dealerId, onBack, onChanged }: { dealerId: number; onBac
               <div className="flex items-center gap-3">
                 <Avatar name={s.name} size="sm" color={s.status === "active" ? "emerald" : "slate"} />
                 <div>
-                  <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">{s.name}</p>
+                  <p className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">{s.name}{s.dealer_role === "manager" && <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-widest bg-amber-50 text-amber-600 dark:bg-amber-500/10">Manager</span>}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">{s.job_title ?? "Staff"} · {s.email} · {s.last_login_at ? `last sign-in ${longDate(s.last_login_at)}` : "never signed in"}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <Badge status={s.status} />
+                <button onClick={() => toggleRole(s)} className="text-xs font-bold text-slate-500 hover:text-blue-600 px-2 py-1 rounded-lg">{s.dealer_role === "manager" ? "Make staff" : "Make manager"}</button>
                 <button onClick={() => toggleStaff(s)} className="text-xs font-bold text-slate-500 hover:text-rose-600 px-2 py-1 rounded-lg">{s.status === "active" ? "Suspend" : "Reinstate"}</button>
               </div>
             </Card>
@@ -407,7 +423,7 @@ const DealerDetail = ({ dealerId, onBack, onChanged }: { dealerId: number; onBac
 
       <AnimatePresence>
         {modal === "edit" && <Modal title="Edit Dealer" onClose={() => setModal(null)} wide><DealerFormView initial={dealer} onClose={() => setModal(null)} onSaved={() => { setModal(null); reload(); onChanged(); }} /></Modal>}
-        {modal === "staff" && <Modal title="Add Staff Login" onClose={() => setModal(null)}><StaffForm dealerId={dealer.id} onClose={() => setModal(null)} onCreated={(s, password) => { setModal(null); setIssued({ email: s.email, password }); reload(); }} /></Modal>}
+        {modal === "staff" && <Modal title="Add Staff Login" onClose={() => setModal(null)}><StaffForm dealerId={dealer.id} firstLogin={dealer.staff.length === 0} onClose={() => setModal(null)} onCreated={(s, password) => { setModal(null); setIssued({ email: s.email, password }); reload(); }} /></Modal>}
       </AnimatePresence>
     </motion.div>
   );

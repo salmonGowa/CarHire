@@ -322,6 +322,7 @@ export interface AccountSummary {
   phone: string | null;
   job_title: string | null;
   role: string;
+  dealer_role?: "manager" | "staff" | null;
   status: "active" | "suspended";
   joined: string;
   last_login_at: string | null;

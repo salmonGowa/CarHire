@@ -31,7 +31,7 @@ class BookingController extends Controller
 
         $bookings = Booking::query()
             ->visibleTo($request->user())
-            ->with(['vehicle', 'dealer', 'invoice'])
+            ->with(['vehicle', 'dealer', 'invoice', 'charges', 'inspections', 'extensions'])
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')))
             ->when($request->filled('search'), function ($q) use ($request) {
                 $term = '%'.$request->string('search').'%';
@@ -50,14 +50,14 @@ class BookingController extends Controller
     {
         $booking = $this->bookings->create($request->user(), $request->validated());
 
-        return new BookingResource($booking->load(['vehicle', 'dealer', 'invoice']));
+        return new BookingResource($booking->load(['vehicle', 'dealer', 'invoice', 'charges', 'inspections', 'extensions']));
     }
 
     public function show(Booking $booking): BookingResource
     {
         Gate::authorize('view', $booking);
 
-        return new BookingResource($booking->load(['vehicle', 'dealer', 'invoice']));
+        return new BookingResource($booking->load(['vehicle', 'dealer', 'invoice', 'charges', 'inspections', 'extensions']));
     }
 
     public function updateStatus(Request $request, Booking $booking): BookingResource
@@ -73,7 +73,7 @@ class BookingController extends Controller
 
         $booking = $this->bookings->transition($booking, $next);
 
-        return new BookingResource($booking->load(['vehicle', 'dealer', 'invoice']));
+        return new BookingResource($booking->load(['vehicle', 'dealer', 'invoice', 'charges', 'inspections', 'extensions']));
     }
 
     public function rate(Request $request, Booking $booking): BookingResource
@@ -90,6 +90,6 @@ class BookingController extends Controller
             'rated_at' => now(),
         ]);
 
-        return new BookingResource($booking->load(['vehicle', 'dealer', 'invoice']));
+        return new BookingResource($booking->load(['vehicle', 'dealer', 'invoice', 'charges', 'inspections', 'extensions']));
     }
 }

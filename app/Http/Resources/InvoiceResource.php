@@ -36,6 +36,11 @@ class InvoiceResource extends JsonResource
                 'vehicle' => $this->booking->relationLoaded('vehicle') && $this->booking->vehicle
                     ? ['model' => $this->booking->vehicle->model, 'plate' => $this->booking->vehicle->plate]
                     : null,
+                // Return charges (late, fuel, mileage, damage), billed on top of the rental.
+                'charges' => $this->booking->relationLoaded('charges')
+                    ? $this->booking->charges->map(fn ($c) => $c->only(['id', 'type', 'description', 'amount', 'vat', 'total']))->values()
+                    : [],
+                'extension_days' => $this->booking->relationLoaded('extensions') ? (int) $this->booking->extensions->where('status', 'approved')->sum('extra_days') : 0,
             ]),
             // Seller details printed on the tax invoice.
             'dealer' => $this->whenLoaded('dealer', fn () => [

@@ -48,6 +48,19 @@ class BookingPolicy
             && in_array($booking->status, [BookingStatus::Confirmed, BookingStatus::Active, BookingStatus::Completed], true);
     }
 
+    /** Handover, return, deposits and extension decisions: the dealer's staff (or a super admin). */
+    public function operate(User $user, Booking $booking): bool
+    {
+        return $this->manages($user, $booking);
+    }
+
+    /** Customers ask for more time on their own upcoming or current rental. */
+    public function requestExtension(User $user, Booking $booking): bool
+    {
+        return $booking->customer_id === $user->id
+            && in_array($booking->status, [BookingStatus::Confirmed, BookingStatus::Active], true);
+    }
+
     private function manages(User $user, Booking $booking): bool
     {
         return $user->isSuperAdmin() || ($user->isDealer() && $user->dealer_id === $booking->dealer_id);

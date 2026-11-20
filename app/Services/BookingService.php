@@ -62,6 +62,7 @@ class BookingService
                 ...Booking::quote($vehicle->daily_rate, $pickupAt, $returnAt, $promotion),
                 'promotion_id' => $promotion?->id,
                 'dealer_id' => $vehicle->dealer_id,
+                'deposit_amount' => $vehicle->dealer->deposit_amount ?? 0,
                 'vehicle_id' => $vehicle->id,
                 'created_by' => $actor->id,
                 'customer_id' => $staff ? null : $actor->id,

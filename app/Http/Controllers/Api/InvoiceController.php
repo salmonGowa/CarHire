@@ -41,6 +41,6 @@ class InvoiceController extends Controller
     {
         abort_unless(Invoice::visibleTo($request->user())->whereKey($invoice->id)->exists(), 404);
 
-        return new InvoiceResource($invoice->load(['booking.vehicle', 'dealer', 'payments' => fn ($q) => $q->orderByDesc('paid_at')]));
+        return new InvoiceResource($invoice->load(['booking.vehicle', 'booking.charges', 'booking.extensions', 'dealer', 'payments' => fn ($q) => $q->orderByDesc('paid_at')]));
     }
 }

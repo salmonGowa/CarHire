@@ -61,7 +61,7 @@ class CustomerAccountController extends Controller
     public function currentTrip(Request $request): JsonResponse
     {
         $user = $request->user();
-        $base = fn () => Booking::with(['vehicle', 'dealer', 'invoice'])->where('customer_id', $user->id);
+        $base = fn () => Booking::with(['vehicle', 'dealer', 'invoice', 'charges', 'inspections', 'extensions'])->where('customer_id', $user->id);
 
         $booking = $base()->where('status', BookingStatus::Active)->orderBy('return_at')->first()
             ?? $base()->whereIn('status', [BookingStatus::Confirmed, BookingStatus::Pending])->where('return_at', '>=', now())->orderBy('pickup_at')->first();

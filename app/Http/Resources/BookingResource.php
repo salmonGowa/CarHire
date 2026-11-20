@@ -70,6 +70,28 @@ class BookingResource extends JsonResource
                 'balance' => $this->invoice->balance(),
             ] : null),
             'can_record_payment' => $user?->can('recordPayment', $this->resource) ?? false,
+            'can_operate' => $user?->can('operate', $this->resource) ?? false,
+            'can_request_extension' => $user?->can('requestExtension', $this->resource) ?? false,
+            'deposit' => [
+                'amount' => $this->deposit_amount,
+                'received' => $this->deposit_received,
+                'method' => $this->deposit_method,
+                'applied' => $this->deposit_applied,
+                'refunded' => $this->deposit_refunded,
+                'held' => $this->depositHeld(),
+                'settled_at' => $this->deposit_settled_at?->toIso8601String(),
+            ],
+            'picked_up_at' => $this->picked_up_at?->toIso8601String(),
+            'returned_at' => $this->returned_at?->toIso8601String(),
+            'charges' => $this->whenLoaded('charges', fn () => $this->charges->map(fn ($c) => $c->only(['id', 'type', 'description', 'amount', 'vat', 'total']))),
+            'inspections' => $this->whenLoaded('inspections', fn () => $this->inspections->mapWithKeys(fn ($i) => [$i->type => [
+                'id' => $i->id, 'odometer' => $i->odometer, 'fuel_level' => $i->fuel_level, 'notes' => $i->notes,
+                'photos' => count($i->photos ?? []), 'at' => $i->created_at->toIso8601String(),
+            ]])),
+            'extension' => $this->whenLoaded('extensions', fn () => ($e = $this->extensions->first()) ? [
+                'id' => $e->id, 'status' => $e->status, 'to_return_at' => $e->to_return_at->toIso8601String(),
+                'extra_days' => $e->extra_days, 'amount' => $e->amount, 'note' => $e->note,
+            ] : null),
         ];
     }
 }

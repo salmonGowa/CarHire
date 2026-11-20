@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PayoutController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\PromotionController;
+use App\Http\Controllers\Api\RentalController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\SavedVehicleController;
 use App\Http\Controllers\Api\SearchController;
@@ -68,6 +69,15 @@ Route::prefix('api')->middleware('auth')->group(function () {
     Route::get('bookings/{booking}', [BookingController::class, 'show']);
     Route::patch('bookings/{booking}/status', [BookingController::class, 'updateStatus']);
     Route::put('bookings/{booking}/rating', [BookingController::class, 'rate']);
+
+    // Handover, return, deposits and extensions.
+    Route::post('bookings/{booking}/handover', [RentalController::class, 'handover']);
+    Route::get('bookings/{booking}/return-quote', [RentalController::class, 'returnQuote']);
+    Route::post('bookings/{booking}/return', [RentalController::class, 'receiveReturn']);
+    Route::post('bookings/{booking}/deposit/settle', [RentalController::class, 'settleDeposit']);
+    Route::post('bookings/{booking}/extensions', [RentalController::class, 'requestExtension']);
+    Route::post('booking-extensions/{extension}/decide', [RentalController::class, 'decideExtension']);
+    Route::get('inspections/{inspection}/photos/{index}', [RentalController::class, 'photo'])->whereNumber('index');
 
     // Money: invoices are issued per confirmed booking; staff record payments against them.
     Route::get('invoices', [InvoiceController::class, 'index']);
@@ -129,6 +139,8 @@ Route::prefix('api')->middleware('auth')->group(function () {
     // The dealer's own account: plan, charges and compliance documents.
     Route::middleware('role:dealer')->group(function () {
         Route::get('subscription', [Admin\SubscriptionController::class, 'mine']);
+        Route::get('dealer-policy', [RentalController::class, 'policy']);
+        Route::put('dealer-policy', [RentalController::class, 'updatePolicy']);
         Route::get('dealer-staff', [DealerStaffController::class, 'index']);
         Route::post('dealer-staff', [DealerStaffController::class, 'store']);
         Route::patch('dealer-staff/{staff}', [DealerStaffController::class, 'update']);

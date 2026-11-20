@@ -69,9 +69,16 @@ export default function InvoiceDocument({ invoiceId, onClose }: { invoiceId: num
                           Vehicle hire: {inv.booking?.vehicle?.model} ({inv.booking?.vehicle?.plate})<br />
                           {inv.booking?.days} day{inv.booking?.days === 1 ? "" : "s"} × {inv.booking && inv.booking.daily_rate.toLocaleString()}
                           {inv.booking && <><br />{dateTime(inv.booking.pickup_at)} → {dateTime(inv.booking.return_at)}</>}
+                          {!!inv.booking?.extension_days && <><br />Includes a {inv.booking.extension_days}-day extension</>}
                         </td>
-                        <td className="py-2 text-right align-top">{inv.subtotal.toLocaleString()}</td>
+                        <td className="py-2 text-right align-top">{(inv.subtotal - (inv.booking?.charges ?? []).reduce((n, c) => n + c.amount, 0)).toLocaleString()}</td>
                       </tr>
+                      {inv.booking?.charges.map((c) => (
+                        <tr key={c.id} className="border-t border-dotted border-slate-300 dark:border-slate-700">
+                          <td className="py-2">{c.description}</td>
+                          <td className="py-2 text-right align-top">{c.amount.toLocaleString()}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
 

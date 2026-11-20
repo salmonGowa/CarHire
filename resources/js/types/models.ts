@@ -7,10 +7,61 @@ export type PaymentMethod = "mpesa" | "card" | "cash" | "pay_later";
 export type ReceivedMethod = "mpesa" | "card" | "bank" | "cash";
 export type InvoiceStatus = "unpaid" | "partial" | "paid" | "void";
 
+/** A dealer's rules for deposits and return charges (amounts before VAT). */
+export interface RentalPolicy {
+  deposit_amount: number;
+  late_grace_minutes: number;
+  /** Per started hour late, as a % of the daily rate (capped at one day per day late). */
+  late_fee_percent: number;
+  fuel_charge_per_percent: number;
+  /** null = unlimited mileage. */
+  included_km_per_day: number | null;
+  extra_km_rate: number;
+}
+
 export interface DealerSummary {
   id: number;
   name: string;
   city: string;
+  policy?: RentalPolicy;
+}
+
+export type ChargeType = "late" | "fuel" | "mileage" | "damage" | "other";
+
+export interface BookingCharge {
+  id?: number;
+  type: ChargeType;
+  description: string;
+  amount: number;
+  vat: number;
+  total: number;
+}
+
+export interface Inspection {
+  id: number;
+  odometer: number;
+  fuel_level: number;
+  notes: string | null;
+  photos: number;
+  at: string;
+}
+
+export interface BookingExtension {
+  id: number;
+  status: "pending" | "approved" | "declined";
+  to_return_at: string;
+  extra_days: number;
+  amount: number;
+  note: string | null;
+}
+
+export interface ReturnQuote {
+  charges: BookingCharge[];
+  charges_total: number;
+  balance_after: number;
+  deposit_held: number;
+  deposit_to_apply: number;
+  deposit_refund: number;
 }
 
 export interface Vehicle {
@@ -62,17 +113,29 @@ export interface Booking {
   agreement_type: "self_drive" | "chauffeur";
   agreement_signed: boolean;
   cancel_until: string;
+  can_operate: boolean;
+  can_request_extension: boolean;
+  deposit: { amount: number; received: number; method: ReceivedMethod | null; applied: number; refunded: number; held: number; settled_at: string | null };
+  picked_up_at: string | null;
+  returned_at: string | null;
+  charges?: BookingCharge[];
+  inspections?: Partial<Record<"pickup" | "return", Inspection>>;
+  extension?: BookingExtension | null;
 }
 
 export interface Payment {
   id: number;
   reference: string;
   amount: number;
-  method: ReceivedMethod;
+  /** deposit = taken from the security deposit the dealer held. */
+  method: ReceivedMethod | "deposit";
   transaction_code: string | null;
   status: "completed" | "refunded";
   paid_at: string;
   refunded_at: string | null;
+  refund_method?: ReceivedMethod | null;
+  refund_reference?: string | null;
+  refund_reason?: string | null;
   vat?: number;
   commission?: number;
   dealer_net?: number;
@@ -105,6 +168,8 @@ export interface Invoice {
     customer_phone: string | null;
     customer_email: string | null;
     vehicle: { model: string; plate: string } | null;
+    charges: BookingCharge[];
+    extension_days: number;
   };
   dealer?: { id: number; name: string; city: string; address: string | null; phone: string | null; email: string | null; tax_pin: string | null };
   payments?: Payment[];

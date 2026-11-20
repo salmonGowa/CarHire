@@ -1,4 +1,4 @@
-import type { BookingStatus, InvoiceStatus, PaymentMethod, ReceivedMethod, VehicleStatus } from "@/types/models";
+import type { BookingStatus, ChargeType, InvoiceStatus, PaymentMethod, ReceivedMethod, VehicleStatus } from "@/types/models";
 
 export const ksh = (amount: number) => `KSh ${amount.toLocaleString("en-KE")}`;
 
@@ -45,13 +45,26 @@ export const TRANSITION_ACTION: Record<BookingStatus, string> = {
   cancelled: "Cancel",
 };
 
-export const PAYMENT_LABEL: Record<PaymentMethod | ReceivedMethod, string> = {
+export const PAYMENT_LABEL: Record<PaymentMethod | ReceivedMethod | "deposit", string> = {
   mpesa: "M-PESA",
   card: "Card",
   cash: "Cash",
   bank: "Bank transfer",
   pay_later: "Pay Later",
+  deposit: "From deposit",
 };
+
+export const CHARGE_LABEL: Record<ChargeType, string> = {
+  late: "Late return",
+  fuel: "Fuel",
+  mileage: "Extra mileage",
+  damage: "Damage",
+  other: "Other",
+};
+
+/** One line describing a dealer's rental policy, for customers. */
+export const mileageRule = (km: number | null, rate: number) =>
+  km ? `${km.toLocaleString("en-KE")} km a day included, then KSh ${rate} per km` : "Unlimited mileage";
 
 export const INVOICE_STATUS_LABEL: Record<InvoiceStatus, string> = {
   unpaid: "Unpaid",

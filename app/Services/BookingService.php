@@ -82,6 +82,10 @@ class BookingService
             }
 
             AuditLog::record('booking.created', "Booking {$booking->reference} for {$booking->customer_name} on {$vehicle->plate}", $booking, actor: $actor);
+            if (! $staff) {
+                DB::afterCommit(fn () => app(Notifier::class)->dealerStaff($booking->dealer_id, 'New booking request',
+                    "{$booking->customer_name} wants the {$vehicle->model} ({$vehicle->plate}) from {$booking->pickup_at->format('j M, H:i')}. Confirm or decline it.", '/dealer-booking'));
+            }
 
             return $booking;
         });
@@ -112,6 +116,33 @@ class BookingService
         }
 
         return $promotion;
+    }
+
+    /** Tell the other side of the booking what changed. */
+    private function notifyStatus(Booking $booking, BookingStatus $next): void
+    {
+        $notifier = app(Notifier::class);
+        $actor = auth()->user();
+        $vehicle = $booking->vehicle?->model ?? 'your vehicle';
+
+        if ($actor && $actor->id === $booking->customer_id) {
+            if ($next === BookingStatus::Cancelled) {
+                $notifier->dealerStaff($booking->dealer_id, 'Booking cancelled by customer', "{$booking->customer_name} cancelled {$booking->reference}.", '/dealer-booking', 'warning');
+            }
+
+            return;
+        }
+
+        [$title, $body, $link, $tone] = match ($next) {
+            BookingStatus::Confirmed => ['Booking confirmed', "{$booking->reference}: the {$vehicle} is yours from {$booking->pickup_at->format('j M, H:i')}.", '/customer-active-trip', 'success'],
+            BookingStatus::Active => ['Trip started', "You have the {$vehicle}. Return by {$booking->return_at->format('j M, H:i')}.", '/customer-active-trip', 'info'],
+            BookingStatus::Completed => ['Trip completed', "Thanks for returning the {$vehicle}. Rate your trip to help other drivers.", '/customer-rentals', 'success'],
+            BookingStatus::Cancelled => ['Booking cancelled', "{$booking->reference} was cancelled by the dealer. Any payment will be refunded by them.", '/customer-rentals', 'warning'],
+            default => [null, null, null, null],
+        };
+        if ($title && $booking->customer_id) {
+            $notifier->user($booking->customer, $title, $body, $link, $tone);
+        }
     }
 
     /**
@@ -162,6 +193,7 @@ class BookingService
             }
 
             AuditLog::record("booking.{$next->value}", "Booking {$booking->reference} marked {$next->value}", $booking);
+            DB::afterCommit(fn () => $this->notifyStatus($booking, $next));
 
             $vehicle = $booking->vehicle()->lockForUpdate()->first();
 

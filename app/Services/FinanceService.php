@@ -87,6 +87,8 @@ class FinanceService
 
             $invoice->refreshAmountPaid();
             AuditLog::record('payment.recorded', 'Recorded KSh '.number_format($payment->amount)." ({$payment->method->value}) on {$booking->reference}", $payment, actor: $actor);
+            DB::afterCommit(fn () => app(Notifier::class)->user($booking->customer, 'Payment received',
+                'KSh '.number_format($payment->amount)." for {$booking->reference}. Balance due: KSh ".number_format($invoice->fresh()->balance()).'.', '/customer-billing', 'success'));
 
             return $payment;
         });

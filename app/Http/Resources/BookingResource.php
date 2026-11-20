@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Enums\BookingStatus;
 use App\Models\Booking;
+use App\Support\Settings;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -59,6 +60,8 @@ class BookingResource extends JsonResource
                 ))
                 : [],
             'can_rate' => $user?->can('rate', $this->resource) ?? false,
+            // Customers can cancel themselves until this time (System Settings cut-off).
+            'cancel_until' => $this->pickup_at->copy()->subHours((int) Settings::get('free_cancellation_hours'))->toIso8601String(),
             'invoice' => $this->whenLoaded('invoice', fn () => $this->invoice ? [
                 'id' => $this->invoice->id,
                 'number' => $this->invoice->number,

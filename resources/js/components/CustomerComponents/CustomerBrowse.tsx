@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { capitalize, ksh } from "@/lib/format";
 import type { Paginated, Vehicle } from "@/types/models";
+import type { Profile } from "@/types/account";
 import LoadState from "../LoadState";
 import BookVehicleModal from "./BookVehicleModal";
 import { type Variants, motion, AnimatePresence } from "framer-motion";
@@ -23,7 +24,12 @@ export default function CustomerBrowse() {
 
   const query = new URLSearchParams({ per_page: "100", ...(activeFilter !== "All" && { type: activeFilter }) });
   const { data, setData, loading, error, reload } = useApi<Paginated<Vehicle>>(`/api/catalog/vehicles?${query}`);
-  const vehicles = (data?.data ?? []).filter((v) => v.model.toLowerCase().includes(search.trim().toLowerCase()));
+  const { data: profile } = useApi<{ data: Profile }>("/api/profile");
+  const preferred = profile?.data.preferences.preferred_vehicle_types ?? [];
+  // Preferred types (Profile → Preferences) are listed first.
+  const vehicles = (data?.data ?? [])
+    .filter((v) => v.model.toLowerCase().includes(search.trim().toLowerCase()))
+    .sort((a, b) => Number(preferred.includes(b.type)) - Number(preferred.includes(a.type)));
 
   const showToast = (message: string) => {
     setToast(message);

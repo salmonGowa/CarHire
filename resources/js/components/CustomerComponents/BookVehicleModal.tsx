@@ -5,6 +5,8 @@ import { useNavigate } from "react-router-dom";
 import Button from "../Button";
 import Input from "../Input";
 import { api, ApiError } from "@/lib/api";
+import { useApi } from "@/lib/useApi";
+import type { Profile } from "@/types/account";
 import { ksh, quote } from "@/lib/format";
 import type { Booking, Vehicle } from "@/types/models";
 
@@ -25,7 +27,10 @@ export default function BookVehicleModal({ vehicle, onClose }: { vehicle: Vehicl
   const navigate = useNavigate();
   const [pickupAt, setPickupAt] = useState(tomorrowAt10());
   const [returnAt, setReturnAt] = useState(tomorrowAt10(2));
-  const [location, setLocation] = useState("");
+  const { data: profile } = useApi<{ data: Profile }>("/api/profile");
+  // Starts from the customer's saved pickup location (Profile → Preferences) until they type their own.
+  const [typedLocation, setLocation] = useState<string | null>(null);
+  const location = typedLocation ?? profile?.data.preferences.default_pickup_location ?? "";
   const [code, setCode] = useState("");
   const [applied, setApplied] = useState<{ code: string; description: string; days: number; discount: number; subtotal: number; vat: number; total: number } | null>(null);
   const [checking, setChecking] = useState(false);

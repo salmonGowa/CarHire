@@ -148,7 +148,7 @@ const ClientFormView = ({ initial, onSaved, onClose }: { initial: AdminClient | 
 };
 
 // ─── KYC review ─────────────────────────────────────────────────────────────
-const KYCReview = ({ client, onDone, onClose }: { client: AdminClient; onDone: () => void; onClose: () => void }) => {
+const KYCReview = ({ client, onDone, onClose }: { client: AdminClientDetail; onDone: () => void; onClose: () => void }) => {
   const [decision, setDecision] = useState<"" | "verified" | "rejected">("");
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
@@ -169,7 +169,22 @@ const KYCReview = ({ client, onDone, onClose }: { client: AdminClient; onDone: (
           <p className="text-xs text-slate-500">{client.reference} · ID: {client.national_id ?? <span className="text-rose-500 font-bold">not provided</span>} · DOB: {client.date_of_birth ? longDate(client.date_of_birth) : "—"}</p>
         </div>
       </div>
-      <p className="text-xs text-slate-500 flex items-start gap-2"><FileText size={14} className="shrink-0 mt-0.5" /> Customers can't upload ID documents in the app yet, so check the ID number against the original when the client collects a car.</p>
+      <p className="text-xs text-slate-500">Licence: {client.licence_number ?? "not provided"}{client.licence_expires_on && ` · expires ${longDate(client.licence_expires_on)}`}</p>
+      {client.documents.length === 0 ? (
+        <p className="text-xs text-amber-700 dark:text-amber-400 flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-500/10"><FileText size={14} className="shrink-0 mt-0.5" /> No documents uploaded yet. Ask the client to upload their ID and licence under Profile, or check the originals at pickup.</p>
+      ) : (
+        <ul className="space-y-2">
+          {client.documents.map(d => (
+            <li key={d.id}>
+              <a href={`/api/documents/${d.id}/file?inline=1`} target="_blank" rel="noreferrer"
+                className="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-blue-400 text-sm">
+                <span className="flex items-center gap-2 font-bold text-slate-800 dark:text-slate-200"><FileText size={14} className="text-blue-500" /> {d.label}</span>
+                <span className="text-xs text-slate-500">uploaded {longDate(d.uploaded_at)} · open</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="grid grid-cols-2 gap-3">
         {(["verified", "rejected"] as const).map(d => (
           <button key={d} onClick={() => setDecision(d)} aria-pressed={decision === d}
@@ -291,7 +306,7 @@ const ClientDetail = ({ clientId, onBack, onChanged }: { clientId: number; onBac
             {[
               [Mail, "Email", client.email], [Phone, "Phone", client.phone], [Phone, "Alt. Phone", client.alt_phone],
               [Calendar, "Date of Birth", client.date_of_birth ? longDate(client.date_of_birth) : null], [Users, "Gender", client.gender],
-              [FileText, "National ID", client.national_id], [FileText, "KRA PIN", client.kra_pin], [MapPin, "Address", [client.address, client.county].filter(Boolean).join(", ")],
+              [FileText, "National ID", client.national_id], [FileText, "KRA PIN", client.kra_pin], [FileText, "Licence", client.licence_number && `${client.licence_number}${client.licence_expires_on ? ` (exp. ${longDate(client.licence_expires_on)})` : ""}`], [MapPin, "Address", [client.address, client.county].filter(Boolean).join(", ")],
             ].map(([Ico, label, value]) => {
               const IconCmp = Ico as typeof Mail;
               return (

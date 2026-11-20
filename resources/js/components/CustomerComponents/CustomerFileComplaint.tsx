@@ -1,334 +1,143 @@
 import { useState, type FormEvent, type ReactNode } from "react";
-import { type Variants, motion, AnimatePresence } from "framer-motion";
-import { 
-  AlertOctagon, FileText, UploadCloud, Send, 
-  CheckCircle2, Info, ChevronLeft, MessageSquareWarning,
-  Clock, ShieldCheck
-} from "lucide-react";
-
-// --- Mock Data ---
-const RECENT_BOOKINGS = [
-  { id: "BK-1044", desc: "Mazda CX-5 (May 12 - May 15)" },
-  { id: "BK-1019", desc: "Toyota Corolla (Feb 10 - Feb 14)" },
-];
+import { type Variants, motion } from "framer-motion";
+import { Link } from "react-router-dom";
+import { AlertTriangle, CheckCircle2, FileWarning, Info, Scale } from "lucide-react";
+import AttachmentPicker from "../AttachmentPicker";
+import Button from "../Button";
+import { api } from "@/lib/api";
+import { fieldErrors } from "@/lib/errors";
+import { attachmentError, ticketForm } from "@/lib/support";
+import { useApi } from "@/lib/useApi";
+import { longDate } from "@/lib/format";
+import type { Booking, Paginated } from "@/types/models";
+import type { SupportTicket } from "@/types/platform";
 
 const COMPLAINT_TYPES = [
-  { value: "vehicle_condition", label: "Vehicle Condition / Cleanliness" },
-  { value: "dealer_behavior", label: "Dealership Service / Staff Behavior" },
-  { value: "billing_issue", label: "Billing / Overcharge Issue" },
-  { value: "accident_breakdown", label: "Accident / Mechanical Breakdown" },
-  { value: "other", label: "Other / General Feedback" },
+  { value: "Vehicle condition or cleanliness", priority: "medium" },
+  { value: "Dealer service or staff behaviour", priority: "medium" },
+  { value: "Billing or overcharge", priority: "high" },
+  { value: "Accident or mechanical breakdown", priority: "high" },
+  { value: "Something else", priority: "low" },
 ];
+const OUTCOMES = ["A refund or partial refund", "An apology or explanation", "A replacement vehicle", "Just letting you know"];
 
-// --- Reusable UI Elements ---
-const Card = ({ children, className = "" }: { children?: ReactNode; className?: string }) => (
-  <div className={`rounded-2xl border bg-white dark:bg-[#0B1120] border-slate-200 dark:border-slate-800/80 shadow-sm ${className}`}>
+const itemVariants: Variants = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
+const inputClass = "w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30";
+
+const Field = ({ label, error, children }: { label: string; error?: string; children: ReactNode }) => (
+  <label className="block">
+    <span className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">{label}</span>
     {children}
-  </div>
+    {error && <span className="block text-xs text-rose-500 mt-1">{error}</span>}
+  </label>
 );
 
-const Input = ({ label, value, onChange, placeholder = "", required = false }: { label: ReactNode; value: string; onChange: (value: string) => void; placeholder?: string; required?: boolean }) => (
-  <div>
-    <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">
-      {label}{required && <span className="text-rose-500 ml-0.5">*</span>}
-    </label>
-    <input 
-      type="text" 
-      value={value} 
-      onChange={e => onChange(e.target.value)} 
-      placeholder={placeholder}
-      required={required}
-      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600" 
-    />
-  </div>
-);
-
-// --- Main Component ---
 export default function CustomerFileComplaint() {
-  const [formData, setFormData] = useState({
-    type: "",
-    bookingId: "",
-    subject: "",
-    description: "",
-    priority: "Medium",
-  });
+  const { data: bookings } = useApi<Paginated<Booking>>("/api/bookings?per_page=50");
+  const [form, setForm] = useState({ type: COMPLAINT_TYPES[0].value, booking_id: "", outcome: OUTCOMES[0], details: "" });
   const [files, setFiles] = useState<File[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [filed, setFiled] = useState<SupportTicket | null>(null);
+  const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const booking = bookings?.data.find((b) => String(b.id) === form.booking_id);
 
-  const set = (key: keyof typeof formData, val: string) => setFormData(prev => ({ ...prev, [key]: val }));
-
-  const handleSubmit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
-    
-    // Simulate API Call
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setIsSuccess(true);
-    }, 2000);
+    if (form.details.trim().length < 20) {
+      setErrors({ details: "Tell us a bit more (at least 20 characters) so we can act on it." });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await api<{ data: SupportTicket }>("/api/support-tickets", {
+        method: "POST",
+        form: ticketForm({
+          category: "Complaint",
+          priority: COMPLAINT_TYPES.find((t) => t.value === form.type)?.priority ?? "medium",
+          subject: `${form.type}${booking ? ` · ${booking.reference}` : ""}`,
+          booking_id: form.booking_id || null,
+          body: `${form.details.trim()}\n\nWhat I'd like: ${form.outcome}`,
+        }, files),
+      });
+      setFiled(res.data);
+    } catch (err) {
+      setErrors(fieldErrors(err));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleReset = () => {
-    setIsSuccess(false);
-    setFormData({ type: "", bookingId: "", subject: "", description: "", priority: "Medium" });
-    setFiles([]);
-  };
-
-  // Animation variants
-  const fade: Variants = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 25 } } };
+  if (filed) {
+    return (
+      <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className="max-w-xl mx-auto mt-10 p-10 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0B1120] text-center space-y-4">
+        <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 flex items-center justify-center"><CheckCircle2 className="w-8 h-8" /></div>
+        <h2 className="text-2xl font-black text-slate-900 dark:text-white">Complaint received</h2>
+        <p className="text-slate-600 dark:text-slate-400">Your reference is <span className="font-mono font-black text-slate-900 dark:text-white">{filed.reference}</span>. The DriveFleet team will look into it and reply under Help &amp; Support. You'll get a notification when they do.</p>
+        <div className="flex justify-center gap-3 pt-2">
+          <Link to="/customer-support" className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold">View my tickets</Link>
+          <button onClick={() => { setFiled(null); setForm({ ...form, details: "", booking_id: "" }); setFiles([]); }} className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-600 dark:text-slate-300">File another</button>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
-    <div className="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8 min-h-screen">
-      
-      {/* Header */}
-      <motion.div initial="hidden" animate="show" variants={fade} className="mb-8">
-        <button className="flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 transition-colors mb-4">
-          <ChevronLeft size={16} /> Back to Dashboard
-        </button>
-        <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
-          <MessageSquareWarning className="text-rose-500" size={28} />
-          File a Complaint
-        </h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-2 max-w-2xl">
-          We take your experience seriously. Please provide the details of your issue below, and our specialized Support Team will investigate immediately.
-        </p>
+    <motion.div variants={{ show: { transition: { staggerChildren: 0.08 } } }} initial="hidden" animate="show" className="space-y-8 pb-10">
+      <motion.div variants={itemVariants}>
+        <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-3"><FileWarning className="w-8 h-8 text-rose-500" /> File a Complaint</h1>
+        <p className="text-sm text-slate-500 mt-1">Formal complaints are handled by DriveFleet, not the dealer, and every one gets a reference and a reply.</p>
       </motion.div>
 
-      <AnimatePresence mode="wait">
-        {isSuccess ? (
-          /* --- SUCCESS STATE --- */
-          <motion.div 
-            key="success"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="flex flex-col items-center justify-center py-20 text-center"
-          >
-            <div className="w-24 h-24 rounded-full bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center mb-6">
-              <CheckCircle2 size={48} className="text-emerald-500" />
-            </div>
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Complaint Submitted Successfully</h2>
-            <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-8">
-              Your ticket <span className="font-mono font-bold text-slate-700 dark:text-slate-300">#TK-88921</span> has been created. A support specialist will contact you via email within 24 hours.
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <motion.form variants={itemVariants} onSubmit={submit} className="lg:col-span-2 p-6 sm:p-8 rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0B1120] shadow-sm space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <Field label="What is it about?">
+              <select value={form.type} onChange={set("type")} className={inputClass}>{COMPLAINT_TYPES.map((t) => <option key={t.value}>{t.value}</option>)}</select>
+            </Field>
+            <Field label="Which booking?" error={errors.booking_id}>
+              <select value={form.booking_id} onChange={set("booking_id")} className={inputClass}>
+                <option value="">Not about a booking</option>
+                {(bookings?.data ?? []).map((b) => <option key={b.id} value={b.id}>{b.reference} · {b.vehicle?.model ?? "Vehicle"} · {longDate(b.pickup_at)}</option>)}
+              </select>
+            </Field>
+          </div>
+          {form.type.startsWith("Accident") && (
+            <p className="flex items-start gap-2 text-sm text-rose-700 dark:text-rose-300 p-4 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> If this is happening right now, use <Link to="/customer-support" className="font-bold underline">Get roadside help</Link> instead, and call 999 or 112 if anyone is hurt.
             </p>
-            <button 
-              onClick={handleReset}
-              className="px-6 py-3 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-sm shadow-xl hover:scale-105 transition-transform"
-            >
-              Return to Dashboard
-            </button>
-          </motion.div>
-        ) : (
-          /* --- FORM STATE --- */
-          <motion.div 
-            key="form"
-            initial="hidden" 
-            animate="show" 
-            exit={{ opacity: 0, y: -20 }}
-            variants={{ show: { transition: { staggerChildren: 0.1 } } }} 
-            className="grid grid-cols-1 lg:grid-cols-3 gap-8"
-          >
-            {/* Left Column: Form */}
-            <div className="lg:col-span-2 space-y-6">
-              <form onSubmit={handleSubmit} className="space-y-6">
-                
-                <motion.div variants={fade}>
-                  <Card className="p-6 space-y-6">
-                    <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 pb-4">
-                      Incident Details
-                    </h3>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">
-                          Complaint Category <span className="text-rose-500">*</span>
-                        </label>
-                        <select 
-                          required
-                          value={formData.type} 
-                          onChange={e => set("type", e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-all appearance-none cursor-pointer"
-                        >
-                          <option value="" disabled>Select category...</option>
-                          {COMPLAINT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                        </select>
-                      </div>
+          )}
+          <Field label="What happened?" error={errors.details ?? errors.body}>
+            <textarea value={form.details} onChange={set("details")} rows={6} className={`${inputClass} resize-none`}
+              placeholder="When and where it happened, who you dealt with, and what went wrong." />
+          </Field>
+          <Field label="What would put it right?">
+            <select value={form.outcome} onChange={set("outcome")} className={inputClass}>{OUTCOMES.map((o) => <option key={o}>{o}</option>)}</select>
+          </Field>
+          <div>
+            <span className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Evidence (optional)</span>
+            <AttachmentPicker files={files} onChange={setFiles} error={attachmentError(errors)} />
+          </div>
+          {errors.form && <p className="text-sm text-rose-600">{errors.form}</p>}
+          <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+            <Button type="submit" disabled={submitting} className="px-8 mt-4">{submitting ? "Sending…" : "Submit Complaint"}</Button>
+          </div>
+        </motion.form>
 
-                      <div>
-                        <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">
-                          Related Booking (Optional)
-                        </label>
-                        <select 
-                          value={formData.bookingId} 
-                          onChange={e => set("bookingId", e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-all appearance-none cursor-pointer"
-                        >
-                          <option value="">None / General Issue</option>
-                          {RECENT_BOOKINGS.map(b => <option key={b.id} value={b.id}>{b.id} — {b.desc}</option>)}
-                        </select>
-                      </div>
-                    </div>
-
-                    <Input 
-                      label="Subject" 
-                      required 
-                      placeholder="Brief summary of the issue..." 
-                      value={formData.subject} 
-                      onChange={v => set("subject", v)} 
-                    />
-
-                    <div>
-                      <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">
-                        Detailed Description <span className="text-rose-500">*</span>
-                      </label>
-                      <textarea 
-                        required
-                        rows={6}
-                        placeholder="Please provide as much detail as possible to help us investigate..."
-                        value={formData.description}
-                        onChange={e => set("description", e.target.value)}
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-all resize-none placeholder:text-slate-400 dark:placeholder:text-slate-600"
-                      />
-                    </div>
-                  </Card>
-                </motion.div>
-
-                {/* Priority Selector */}
-                <motion.div variants={fade}>
-                  <Card className="p-6">
-                    <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest mb-4">
-                      Severity Level
-                    </h3>
-                    <div className="grid grid-cols-3 gap-3">
-                      {[
-                        { level: "Low", desc: "Minor inconvenience", color: "border-emerald-200 dark:border-emerald-800/50 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/10" },
-                        { level: "Medium", desc: "Service impacted", color: "border-amber-200 dark:border-amber-800/50 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/10" },
-                        { level: "High", desc: "Urgent safety/financial", color: "border-rose-200 dark:border-rose-800/50 text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/10" }
-                      ].map(p => (
-                        <button
-                          key={p.level}
-                          type="button"
-                          onClick={() => set("priority", p.level)}
-                          className={`p-3 rounded-xl border-2 text-left transition-all ${
-                            formData.priority === p.level 
-                            ? `${p.color} ring-2 ring-offset-1 ring-offset-white dark:ring-offset-[#0B1120] ${p.color.split(' ')[0].replace('border', 'ring')}` 
-                            : "border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-700 bg-transparent text-slate-500 dark:text-slate-400"
-                          }`}
-                        >
-                          <span className="block font-bold text-sm mb-0.5">{p.level}</span>
-                          <span className="block text-[10px] opacity-80 truncate">{p.desc}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </Card>
-                </motion.div>
-
-                {/* File Upload Placeholder */}
-                <motion.div variants={fade}>
-                  <Card className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">
-                        Evidence / Attachments
-                      </h3>
-                      <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">Optional</span>
-                    </div>
-                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                        <UploadCloud className="w-8 h-8 text-slate-400 mb-2" />
-                        <p className="text-sm text-slate-600 dark:text-slate-400 font-medium">
-                          <span className="text-blue-600 dark:text-blue-400 font-bold">Click to upload</span> or drag and drop
-                        </p>
-                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">PNG, JPG or PDF (MAX. 10MB)</p>
-                      </div>
-                      <input type="file" className="hidden" multiple onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
-                    </label>
-                    {files.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {files.map((f, i) => (
-                          <span key={i} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-xs font-bold rounded-lg border border-blue-100 dark:border-blue-800">
-                            <FileText size={12} /> {f.name}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </Card>
-                </motion.div>
-
-                {/* Submit Action */}
-                <motion.div variants={fade} className="flex justify-end pt-4">
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="flex items-center gap-2 px-8 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-sm shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 disabled:opacity-70 disabled:hover:translate-y-0 disabled:cursor-not-allowed"
-                  >
-                    {isSubmitting ? (
-                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : (
-                      <>Submit Complaint <Send size={16} /></>
-                    )}
-                  </button>
-                </motion.div>
-
-              </form>
-            </div>
-
-            {/* Right Column: Info & Process */}
-            <motion.div variants={fade} className="space-y-6">
-              
-              <Card className="p-6 bg-blue-50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800/50">
-                <h3 className="text-sm font-black text-blue-900 dark:text-blue-100 flex items-center gap-2 mb-4">
-                  <Info size={16} className="text-blue-600 dark:text-blue-400" />
-                  What happens next?
-                </h3>
-                <div className="relative pl-5 space-y-5 before:absolute before:left-1.5 before:top-1.5 before:bottom-2 before:w-0.5 before:bg-blue-200 dark:before:bg-blue-800">
-                  <div className="relative text-sm">
-                    <span className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-blue-600 dark:bg-blue-500 ring-4 ring-blue-50 dark:ring-[#0f172a]" />
-                    <p className="font-bold text-slate-800 dark:text-slate-200">1. Ticket Created</p>
-                    <p className="text-slate-600 dark:text-slate-400 text-xs mt-1">You will receive an email confirmation with your tracking ID.</p>
-                  </div>
-                  <div className="relative text-sm">
-                    <span className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-700 ring-4 ring-blue-50 dark:ring-[#0f172a]" />
-                    <p className="font-bold text-slate-800 dark:text-slate-200">2. Investigation</p>
-                    <p className="text-slate-600 dark:text-slate-400 text-xs mt-1">Our resolution team will review the details and contact the dealership.</p>
-                  </div>
-                  <div className="relative text-sm">
-                    <span className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-700 ring-4 ring-blue-50 dark:ring-[#0f172a]" />
-                    <p className="font-bold text-slate-800 dark:text-slate-200">3. Resolution</p>
-                    <p className="text-slate-600 dark:text-slate-400 text-xs mt-1">We aim to resolve all complaints within 24-48 business hours.</p>
-                  </div>
-                </div>
-              </Card>
-
-              <Card className="p-6">
-                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest mb-4">
-                  Need immediate help?
-                </h3>
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400">
-                      <ShieldCheck size={18} />
-                    </div>
-                    <div>
-                      <p className="font-bold text-sm text-slate-900 dark:text-white">Emergency Hotline</p>
-                      <p className="text-xs font-mono mt-0.5 text-slate-500 dark:text-slate-400">0800 111 222</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400">
-                      <Clock size={18} />
-                    </div>
-                    <div>
-                      <p className="font-bold text-sm text-slate-900 dark:text-white">Support Hours</p>
-                      <p className="text-xs mt-0.5 text-slate-500 dark:text-slate-400">24/7 for active bookings.</p>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+        <motion.aside variants={itemVariants} className="space-y-6">
+          <div className="p-6 rounded-[2rem] bg-blue-50 dark:bg-blue-500/5 border border-blue-100 dark:border-blue-500/10">
+            <h3 className="text-sm font-black text-blue-900 dark:text-blue-100 flex items-center gap-2 mb-3"><Scale className="w-4 h-4" /> What happens next</h3>
+            <ol className="space-y-2 text-sm text-blue-900/80 dark:text-blue-100/80 list-decimal list-inside">
+              <li>We read it and may ask you questions in the ticket.</li>
+              <li>We talk to the dealer and look at the booking, payments and agreement.</li>
+              <li>We reply with what we found and what will be done.</li>
+            </ol>
+          </div>
+          <div className="p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0B1120] text-sm text-slate-600 dark:text-slate-400 flex gap-3">
+            <Info className="w-4 h-4 shrink-0 mt-0.5" /> Photos of damage, receipts or messages help most. Files are only seen by you and the DriveFleet team.
+          </div>
+        </motion.aside>
+      </div>
+    </motion.div>
   );
 }

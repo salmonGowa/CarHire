@@ -1,98 +1,95 @@
-import React from "react";
 import { type Variants, motion } from "framer-motion";
-import Button from "../Button";
-import { 
-  Award, Gift, Crown, Star, ChevronRight, 
-  TrendingUp, TicketPercent, CheckCircle2, 
-  Car,
-  Users
-} from "lucide-react";
-
-const REWARDS = [
-  { id: 1, title: "10% Off Next SUV Rental", cost: 500, type: "Discount", available: true },
-  { id: 2, title: "Free Airport Transfer", cost: 1200, type: "Service", available: false },
-  { id: 3, title: "Free Additional Driver", cost: 300, type: "Add-on", available: true },
-];
+import { Link } from "react-router-dom";
+import { Award, Car, Gift, Info, Star, TrendingUp } from "lucide-react";
+import LoadState from "../LoadState";
+import { useApi } from "@/lib/useApi";
+import { ksh, longDate } from "@/lib/format";
+import type { Rewards } from "@/types/account";
 
 const itemVariants: Variants = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
+const TIER_STYLE: Record<string, string> = {
+  Bronze: "from-orange-500 to-amber-700",
+  Silver: "from-slate-400 to-slate-600",
+  Gold: "from-amber-400 to-orange-500",
+  Platinum: "from-violet-500 to-indigo-700",
+};
 
 export default function CustomerRewards() {
-  const currentPoints = 850;
-  const nextTierPoints = 1500;
+  const { data: r, loading, error, reload } = useApi<Rewards>("/api/rewards");
+  if (!r) return <LoadState loading={loading} error={error} onRetry={reload} />;
+
+  const progress = r.next_tier ? Math.min(100, Math.round((r.lifetime_value / r.next_tier.threshold) * 100)) : 100;
 
   return (
     <motion.div variants={{ show: { transition: { staggerChildren: 0.1 } } }} initial="hidden" animate="show" className="space-y-8 pb-10">
-      
-      {/* ── Tier Hero Section ── */}
-      <motion.div variants={itemVariants} className="p-8 sm:p-12 rounded-[3rem] bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-2xl shadow-amber-500/20 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-8">
-        <div className="absolute -right-20 -top-20 opacity-20">
-          <Crown className="w-96 h-96" />
-        </div>
-        
-        <div className="relative z-10 w-full md:w-auto text-center md:text-left">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/20 backdrop-blur-md rounded-2xl text-xs font-black uppercase tracking-widest mb-6">
-            <Award className="w-4 h-4" /> Gold Tier Member
-          </div>
-          <h2 className="text-5xl font-black mb-2">{currentPoints} <span className="text-2xl font-bold text-amber-200">PTS</span></h2>
-          <p className="text-amber-100 font-medium">Earn points on every rental to unlock exclusive perks.</p>
-        </div>
-
-        <div className="relative z-10 w-full max-w-md bg-black/20 backdrop-blur-md p-6 rounded-[2rem] border border-white/10">
-           <div className="flex justify-between items-end mb-3">
-             <span className="text-xs font-bold text-amber-200 uppercase tracking-widest">Progress to Platinum</span>
-             <span className="text-sm font-black">{currentPoints} / {nextTierPoints}</span>
-           </div>
-           <div className="w-full h-3 bg-black/40 rounded-full overflow-hidden mb-4">
-              <motion.div initial={{ width: 0 }} animate={{ width: `${(currentPoints / nextTierPoints) * 100}%` }} className="h-full bg-white rounded-full" />
-           </div>
-           <p className="text-xs text-amber-100 font-medium text-center">Rent 2 more times this year to upgrade.</p>
-        </div>
-      </motion.div>
-
-      {/* ── Ways to Earn ── */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div className="p-6 rounded-3xl bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center text-center">
-           <div className="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-500/10 text-blue-500 flex items-center justify-center mb-4"><Car className="w-8 h-8" /></div>
-           <h4 className="text-base font-black text-slate-900 dark:text-white">Rent Vehicles</h4>
-           <p className="text-xs text-slate-500 mt-2">Earn 10 points for every KSh 1,000 spent.</p>
-        </div>
-        <div className="p-6 rounded-3xl bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center text-center">
-           <div className="w-16 h-16 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500 flex items-center justify-center mb-4"><Star className="w-8 h-8" /></div>
-           <h4 className="text-base font-black text-slate-900 dark:text-white">Leave a Review</h4>
-           <p className="text-xs text-slate-500 mt-2">Earn 50 points for reviewing your completed trips.</p>
-        </div>
-        <div className="p-6 rounded-3xl bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center text-center">
-           <div className="w-16 h-16 rounded-2xl bg-violet-50 dark:bg-violet-500/10 text-violet-500 flex items-center justify-center mb-4"><Users className="w-8 h-8" /></div>
-           <h4 className="text-base font-black text-slate-900 dark:text-white">Refer a Friend</h4>
-           <p className="text-xs text-slate-500 mt-2">Earn 500 points when they complete their first rental.</p>
-        </div>
-      </motion.div>
-
-      {/* ── Redeem Rewards ── */}
       <motion.div variants={itemVariants}>
-        <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">Available Rewards</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {REWARDS.map((reward) => (
-            <div key={reward.id} className={`p-6 rounded-[2rem] border transition-all ${reward.available ? 'bg-white dark:bg-[#0B1120] border-slate-200 dark:border-slate-800 hover:border-blue-500/50 shadow-sm' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 opacity-70'}`}>
-              <div className="flex justify-between items-start mb-6">
-                <div className={`p-3 rounded-xl ${reward.available ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-500' : 'bg-slate-200 dark:bg-slate-800 text-slate-400'}`}>
-                  <TicketPercent className="w-6 h-6" />
+        <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Loyalty & Rewards</h2>
+        <p className="text-sm text-slate-500 mt-1">Your tier grows with what you spend on DriveFleet. Points are earned on every paid trip and review.</p>
+      </motion.div>
+
+      <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className={`lg:col-span-2 p-8 rounded-[2.5rem] bg-gradient-to-br ${TIER_STYLE[r.tier] ?? TIER_STYLE.Bronze} text-white shadow-xl relative overflow-hidden`}>
+          <Award className="absolute -right-6 -bottom-6 w-44 h-44 text-white/10" />
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-white/80">{r.tier} member</p>
+          <h3 className="text-5xl font-black mt-2">{r.points.toLocaleString()} <span className="text-2xl font-bold text-white/80">points</span></h3>
+          <p className="text-sm text-white/80 mt-2">{ksh(r.lifetime_value)} spent across {r.completed_trips} completed trip{r.completed_trips === 1 ? "" : "s"}</p>
+          <div className="mt-8 relative z-10">
+            {r.next_tier ? (
+              <>
+                <div className="flex justify-between text-xs font-bold text-white/90 mb-2">
+                  <span>{r.tier}</span><span>{ksh(r.next_tier.threshold - r.lifetime_value)} more to reach {r.next_tier.name}</span>
                 </div>
-                <span className="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  {reward.cost} PTS
-                </span>
-              </div>
-              <h4 className="text-lg font-black text-slate-900 dark:text-white leading-tight mb-2">{reward.title}</h4>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">{reward.type}</p>
-              
-              <Button fullWidth variant={reward.available ? 'primary' : 'secondary'} className={!reward.available ? 'opacity-50 cursor-not-allowed' : ''}>
-                {reward.available ? 'Redeem Now' : 'Not Enough Points'}
-              </Button>
+                <div className="h-3 rounded-full bg-white/20 overflow-hidden"><motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 1 }} className="h-full bg-white rounded-full" /></div>
+              </>
+            ) : <p className="text-sm font-bold">You're at our top tier. Thank you for riding with us.</p>}
+          </div>
+        </div>
+
+        <div className="p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0B1120] shadow-sm space-y-4">
+          <h3 className="font-black text-slate-900 dark:text-white flex items-center gap-2"><TrendingUp className="w-4 h-4 text-blue-500" /> Tiers</h3>
+          {r.tiers.map((t) => (
+            <div key={t.name} className={`flex items-center justify-between p-3 rounded-xl ${t.name === r.tier ? "bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20" : "bg-slate-50 dark:bg-slate-900"}`}>
+              <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{t.name}{t.name === r.tier && " · you"}</span>
+              <span className="text-xs text-slate-500">{t.threshold ? `from ${ksh(t.threshold)}` : "starting tier"}</span>
             </div>
           ))}
         </div>
       </motion.div>
 
+      <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div className="p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0B1120] shadow-sm flex gap-4">
+          <div className="p-3 h-fit rounded-xl bg-blue-50 dark:bg-blue-500/10 text-blue-600"><Car className="w-5 h-5" /></div>
+          <div><h4 className="font-black text-slate-900 dark:text-white">Rent vehicles</h4><p className="text-sm text-slate-500 mt-1">1 point for every {ksh(r.rules.ksh_per_point)} you pay on a completed trip.</p></div>
+        </div>
+        <Link to="/customer-rentals" className="p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0B1120] shadow-sm flex gap-4 hover:border-amber-300">
+          <div className="p-3 h-fit rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-600"><Star className="w-5 h-5" /></div>
+          <div>
+            <h4 className="font-black text-slate-900 dark:text-white">Leave a review</h4>
+            <p className="text-sm text-slate-500 mt-1">{r.rules.points_per_review} points for each trip you rate.{r.unrated > 0 && <strong className="text-amber-600"> You have {r.unrated} trip{r.unrated === 1 ? "" : "s"} to rate.</strong>}</p>
+          </div>
+        </Link>
+      </motion.div>
+
+      <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0B1120] shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-slate-100 dark:border-slate-800"><h3 className="font-black text-slate-900 dark:text-white">Points history</h3></div>
+          {r.history.length === 0 ? <p className="p-10 text-center text-sm text-slate-400">Finish your first trip to start earning points.</p> : (
+            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+              {r.history.map((h, i) => (
+                <li key={i} className="flex items-center justify-between gap-4 px-5 py-3">
+                  <div><p className="text-sm font-bold text-slate-800 dark:text-slate-200">{h.label}</p><p className="text-xs text-slate-500">{longDate(h.at)}</p></div>
+                  <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">+{h.points}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="p-6 rounded-[2rem] border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 space-y-3">
+          <h3 className="font-black text-slate-900 dark:text-white flex items-center gap-2"><Gift className="w-4 h-4 text-violet-500" /> Redeeming points</h3>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Spending points on discounts isn't available yet. Your points are kept and will count once rewards launch.</p>
+          <p className="flex items-start gap-2 text-xs text-slate-500"><Info className="w-4 h-4 shrink-0" /> Dealers' promo codes still work at checkout in the meantime.</p>
+        </div>
+      </motion.div>
     </motion.div>
   );
 }

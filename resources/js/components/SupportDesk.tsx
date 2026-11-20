@@ -1,9 +1,11 @@
 import { useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  AlertTriangle, Building2, CheckCircle2, Clock, Lock, MessageSquare, Plus, Search, Send, User, UserCog, X,
+  AlertTriangle, Building2, CheckCircle2, Clock, Lock, MessageSquare, Paperclip, Plus, Search, Send, User, UserCog, X,
 } from "lucide-react";
 import LoadState from "./LoadState";
+import AttachmentPicker from "./AttachmentPicker";
+import { attachmentError, ticketForm } from "@/lib/support";
 import { api } from "@/lib/api";
 import { errorMessage, fieldErrors } from "@/lib/errors";
 import { useApi } from "@/lib/useApi";
@@ -34,14 +36,16 @@ const OriginIcon = ({ origin }: { origin: SupportTicket["origin"] }) =>
   origin === "dealer" ? <Building2 className="w-3.5 h-3.5" /> : origin === "staff" ? <UserCog className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />;
 
 // ─── New ticket ─────────────────────────────────────────────────────────────
-function NewTicket({ categories, bookingsPath, onClose, onCreated }: {
+function NewTicket({ categories, bookingsPath, preset, onClose, onCreated }: {
   categories: string[];
   bookingsPath?: string;
+  preset?: { category?: string; subject?: string };
   onClose: () => void;
   onCreated: (t: SupportTicket) => void;
 }) {
   const { data: bookings } = useApi<{ data: Booking[] }>(bookingsPath ?? null);
-  const [form, setForm] = useState({ subject: "", category: categories[0] ?? "Other", priority: "medium", booking_id: "", body: "" });
+  const [form, setForm] = useState({ subject: preset?.subject ?? "", category: preset?.category ?? categories[0] ?? "Other", priority: "medium", booking_id: "", body: "" });
+  const [files, setFiles] = useState<File[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -50,10 +54,7 @@ function NewTicket({ categories, bookingsPath, onClose, onCreated }: {
   const save = async () => {
     setSaving(true);
     try {
-      const res = await api<{ data: SupportTicket }>("/api/support-tickets", {
-        method: "POST",
-        body: { ...form, booking_id: form.booking_id ? Number(form.booking_id) : null },
-      });
+      const res = await api<{ data: SupportTicket }>("/api/support-tickets", { method: "POST", form: ticketForm(form, files) });
       onCreated(res.data);
     } catch (err) {
       setErrors(fieldErrors(err));
@@ -96,6 +97,7 @@ function NewTicket({ categories, bookingsPath, onClose, onCreated }: {
             </select>
           ))}
           {label("Describe the problem", errors.body, <textarea value={form.body} onChange={set("body")} rows={5} className={`${inputClass} resize-none`} />)}
+          <AttachmentPicker files={files} onChange={setFiles} error={attachmentError(errors)} />
           {errors.form && <p className="text-sm text-rose-600">{errors.form}</p>}
           <div className="flex justify-end gap-3 pt-2">
             <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300">Cancel</button>
@@ -118,6 +120,7 @@ function Thread({ ticketId, admin, agents, onChanged, onClose }: {
   const { data, error, setData, reload } = useApi<{ data: SupportTicketDetail }>(`/api/support-tickets/${ticketId}`);
   const [body, setBody] = useState("");
   const [internal, setInternal] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState("");
   const t = data?.data;
@@ -127,8 +130,9 @@ function Thread({ ticketId, admin, agents, onChanged, onClose }: {
     if (!body.trim()) return;
     setSending(true);
     try {
-      setData(await api<{ data: SupportTicketDetail }>(`/api/support-tickets/${t.id}/messages`, { method: "POST", body: { body, internal } }));
+      setData(await api<{ data: SupportTicketDetail }>(`/api/support-tickets/${t.id}/messages`, { method: "POST", form: ticketForm({ body, internal }, files) }));
       setBody("");
+      setFiles([]);
       setMessage("");
       onChanged();
     } catch (err) {
@@ -197,6 +201,18 @@ function Thread({ ticketId, admin, agents, onChanged, onClose }: {
                 {m.internal && <Lock className="w-3 h-3" />}{m.author}{m.from_support && !m.mine && " · DriveFleet Support"} · {dateTime(m.at)}{m.internal && " · internal note"}
               </p>
               <p className="whitespace-pre-wrap leading-relaxed">{m.body}</p>
+              {m.attachments.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {m.attachments.map((a) => (
+                    <a key={a.id} href={`/api/support-attachments/${a.id}?inline=1`} target="_blank" rel="noreferrer"
+                      className={`block rounded-lg overflow-hidden border ${m.mine && !m.internal ? "border-blue-400" : "border-slate-200 dark:border-slate-700"}`}>
+                      {a.is_image
+                        ? <img src={`/api/support-attachments/${a.id}?inline=1`} alt={a.name} className="w-24 h-24 object-cover" loading="lazy" />
+                        : <span className={`flex items-center gap-1 px-2.5 py-2 text-xs font-bold ${m.mine && !m.internal ? "text-white" : "text-slate-700 dark:text-slate-300"}`}><Paperclip className="w-3.5 h-3.5" /> {a.name}</span>}
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -210,6 +226,7 @@ function Thread({ ticketId, admin, agents, onChanged, onClose }: {
             <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} aria-label="Reply"
               placeholder={internal ? "Internal note, only visible to DriveFleet staff…" : t.status === "resolved" && !admin ? "Replying reopens the ticket…" : "Write a reply…"}
               className={`${inputClass} resize-none ${internal ? "!bg-amber-50 dark:!bg-amber-500/5 !border-amber-300" : ""}`} />
+            <AttachmentPicker files={files} onChange={setFiles} compact />
             <div className="flex items-center justify-between gap-3">
               {admin ? (
                 <label className="flex items-center gap-2 text-xs font-bold text-slate-500 cursor-pointer">
@@ -233,13 +250,23 @@ function Thread({ ticketId, admin, agents, onChanged, onClose }: {
  * Ticket list plus conversation. `admin` works the whole queue (status,
  * priority, assignment, internal notes); everyone else sees and raises their own.
  */
-export default function SupportDesk({ admin = false, bookingsPath }: { admin?: boolean; bookingsPath?: string }) {
+export default function SupportDesk({ admin = false, bookingsPath, startNew }: {
+  admin?: boolean;
+  bookingsPath?: string;
+  /** Open the new-ticket form straight away (e.g. from a "Get roadside help" button). Change the key to reopen. */
+  startNew?: { key: number; category?: string; subject?: string } | null;
+}) {
   const [status, setStatus] = useState(admin ? "active" : "all");
   const [priority, setPriority] = useState("");
   const [origin, setOrigin] = useState("");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
+  const [lastStart, setLastStart] = useState<number | null>(null);
+  if (startNew && startNew.key !== lastStart) {
+    setLastStart(startNew.key);
+    setCreating(true);
+  }
   const term = useDebounced(search.trim());
 
   const query = new URLSearchParams({ status, ...(priority && { priority }), ...(origin && { origin }), ...(term && { search: term }) });
@@ -335,7 +362,7 @@ export default function SupportDesk({ admin = false, bookingsPath }: { admin?: b
 
       <AnimatePresence>
         {creating && (
-          <NewTicket categories={data?.categories ?? []} bookingsPath={bookingsPath} onClose={() => setCreating(false)}
+          <NewTicket categories={data?.categories ?? []} bookingsPath={bookingsPath} preset={startNew ?? undefined} onClose={() => setCreating(false)}
             onCreated={(t) => { setCreating(false); setStatus("all"); setSelected(t.id); reload(); }} />
         )}
       </AnimatePresence>

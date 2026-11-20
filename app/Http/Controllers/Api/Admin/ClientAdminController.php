@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\Payment;
 use App\Models\User;
+use App\Models\UserDocument;
 use App\Services\Notifier;
 use App\Support\CustomerTier;
 use Illuminate\Http\JsonResponse;
@@ -79,6 +80,10 @@ class ClientAdminController extends Controller
             'payments' => $payments->map(fn (Payment $p) => [
                 'id' => $p->id, 'reference' => $p->reference, 'amount' => $p->amount, 'method' => $p->method->value,
                 'status' => $p->status->value, 'paid_at' => $p->paid_at->toIso8601String(), 'booking_reference' => $p->booking?->reference,
+            ]),
+            'documents' => $client->documents()->latest()->get()->map(fn (UserDocument $d) => [
+                'id' => $d->id, 'type' => $d->type, 'label' => UserDocument::TYPES[$d->type] ?? $d->type,
+                'original_name' => $d->original_name, 'uploaded_at' => $d->created_at->toIso8601String(),
             ]),
             'activity' => $activity->map(fn (AuditLog $l) => ['action' => $l->description, 'by' => $l->actor, 'at' => $l->created_at->toIso8601String()]),
         ]]);
@@ -187,7 +192,8 @@ class ClientAdminController extends Controller
         $closed = (int) $u->completed_count + (int) $u->cancelled_count;
 
         return [
-            ...$u->only(['id', 'name', 'email', 'phone', 'alt_phone', 'national_id', 'kra_pin', 'gender', 'address', 'county', 'admin_notes']),
+            ...$u->only(['id', 'name', 'email', 'phone', 'alt_phone', 'national_id', 'kra_pin', 'gender', 'address', 'county', 'admin_notes', 'licence_number']),
+            'licence_expires_on' => $u->licence_expires_on?->toDateString(),
             'reference' => 'USR-'.str_pad((string) $u->id, 5, '0', STR_PAD_LEFT),
             'date_of_birth' => $u->date_of_birth?->toDateString(),
             'joined' => $u->created_at->toIso8601String(),

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { STATUS_CFG, HeadingArrow, Gauge, Spark, Icon } from "./ConstantStyling";
+import { HeadingArrow, Gauge, Spark, Icon } from "./ConstantStyling";
+import { STATUS_CFG } from "@/lib/trackingStyles";
 import { TRIP_HISTORY, type Vehicle } from "@/data";
 
 const DetailPanel = ({ v, onCommand }: { v: Vehicle; onCommand: (cmd: string, vehicleId: number) => void }) => {

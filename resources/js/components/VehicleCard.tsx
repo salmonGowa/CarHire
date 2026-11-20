@@ -1,6 +1,7 @@
 
 import { motion } from "framer-motion";
-import { STATUS_CFG, HeadingArrow, fade, Icon, Spark } from "./ConstantStyling";
+import { HeadingArrow, Icon, Spark } from "./ConstantStyling";
+import { STATUS_CFG, fade } from "@/lib/trackingStyles";
 import type { Vehicle } from "@/data";
 
 const VehicleCard = ({ v, selected, onClick }: { v: Vehicle; selected: boolean; onClick: () => void }) => {

@@ -300,7 +300,7 @@ export default function LoginPage() {
               </label>
               <button
                 type="button"
-                onClick={() => setError("Password reset isn't set up yet. Contact your administrator.")}
+                onClick={() => setError(`Resetting by email isn't available yet. Dealer staff: ask your manager to reset it from Staff & Logins. Customers: contact DriveFleet support${appConfig.platform.support_email ? ` at ${appConfig.platform.support_email}` : ""}.`)}
                 className="text-sm text-blue-600 hover:text-blue-500 hover:underline font-semibold transition-colors"
               >
                 Forgot password?

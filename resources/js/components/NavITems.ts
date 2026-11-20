@@ -55,7 +55,8 @@ const NAV_ITEMS: Record<string, NavItem[]> = {
     { icon: "UserCog", label: "Platform Staff", id: "superadmin-staff" },
     
     
-    { icon: "Megaphone", label: "Marketing", id: "superadmin-marketing" }, 
+    // Marketing is hidden until its page exists (the route is commented out in AppRoutes).
+    // { icon: "Megaphone", label: "Marketing", id: "superadmin-marketing" },
     { icon: "LifeBuoy", label: "Support Tickets", id: "superadmin-support" },
     
     

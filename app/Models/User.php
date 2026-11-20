@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\UserRole;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -94,6 +93,12 @@ class User extends Authenticatable
     public function isDealerManager(): bool
     {
         return $this->isDealer() && $this->dealer_id !== null && $this->dealer_role === 'manager';
+    }
+
+    /** Phone number the SMS channel sends to. */
+    public function routeNotificationForSms(): ?string
+    {
+        return $this->phone;
     }
 
     public function isDisabled(): bool

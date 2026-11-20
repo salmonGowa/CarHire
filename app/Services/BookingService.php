@@ -84,7 +84,7 @@ class BookingService
             AuditLog::record('booking.created', "Booking {$booking->reference} for {$booking->customer_name} on {$vehicle->plate}", $booking, actor: $actor);
             if (! $staff) {
                 DB::afterCommit(fn () => app(Notifier::class)->dealerStaff($booking->dealer_id, 'New booking request',
-                    "{$booking->customer_name} wants the {$vehicle->model} ({$vehicle->plate}) from {$booking->pickup_at->format('j M, H:i')}. Confirm or decline it.", '/dealer-booking'));
+                    "{$booking->customer_name} wants the {$vehicle->model} ({$vehicle->plate}) from {$booking->pickup_at->format('j M, H:i')}. Confirm or decline it.", '/dealer-booking', category: 'booking'));
             }
 
             return $booking;
@@ -127,7 +127,7 @@ class BookingService
 
         if ($actor && $actor->id === $booking->customer_id) {
             if ($next === BookingStatus::Cancelled) {
-                $notifier->dealerStaff($booking->dealer_id, 'Booking cancelled by customer', "{$booking->customer_name} cancelled {$booking->reference}.", '/dealer-booking', 'warning');
+                $notifier->dealerStaff($booking->dealer_id, 'Booking cancelled by customer', "{$booking->customer_name} cancelled {$booking->reference}.", '/dealer-booking', 'warning', 'booking');
             }
 
             return;
@@ -141,7 +141,8 @@ class BookingService
             default => [null, null, null, null],
         };
         if ($title && $booking->customer_id) {
-            $notifier->user($booking->customer, $title, $body, $link, $tone);
+            // Confirmations and cancellations change someone's plans, so they're also texted.
+            $notifier->user($booking->customer, $title, $body, $link, $tone, 'booking', sms: in_array($next, [BookingStatus::Confirmed, BookingStatus::Cancelled], true));
         }
     }
 

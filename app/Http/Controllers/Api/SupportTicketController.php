@@ -129,7 +129,7 @@ class SupportTicketController extends Controller
         AuditLog::record('support.opened', "Opened {$ticket->reference}: {$ticket->subject}", $ticket, $ticket->priority === 'urgent' ? 'warning' : 'info');
         if ($ticket->priority === 'urgent') {
             foreach (User::where('role', UserRole::SuperAdmin)->whereNull('disabled_at')->get() as $admin) {
-                app(Notifier::class)->user($admin, "Urgent: {$ticket->subject}", "{$user->name} opened {$ticket->reference} ({$ticket->category}).", '/superadmin-support', 'error');
+                app(Notifier::class)->user($admin, "Urgent: {$ticket->subject}", "{$user->name} opened {$ticket->reference} ({$ticket->category}).", '/superadmin-support', 'error', 'support');
             }
         }
 
@@ -165,9 +165,9 @@ class SupportTicketController extends Controller
         if (! $internal) {
             $notifier = app(Notifier::class);
             if ($user->isSuperAdmin() && $ticket->user_id !== $user->id) {
-                $notifier->user($ticket->user, "Reply on {$ticket->reference}", 'DriveFleet Support: '.str($data['body'])->limit(120), $this->linkFor($ticket->user));
+                $notifier->user($ticket->user, "Reply on {$ticket->reference}", 'DriveFleet Support: '.str($data['body'])->limit(120), $this->linkFor($ticket->user), category: 'support');
             } elseif ($ticket->assignee && $ticket->assignee->id !== $user->id) {
-                $notifier->user($ticket->assignee, "New reply on {$ticket->reference}", "{$user->name}: ".str($data['body'])->limit(120), '/superadmin-support');
+                $notifier->user($ticket->assignee, "New reply on {$ticket->reference}", "{$user->name}: ".str($data['body'])->limit(120), '/superadmin-support', category: 'support');
             }
         }
 

@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use App\Services\Sms\AfricasTalkingSmsSender;
+use App\Services\Sms\LogSmsSender;
+use App\Services\Sms\SmsSender;
 use App\Support\Settings;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Events\MigrationsEnded;
@@ -19,7 +22,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Text messages go to the log unless Africa's Talking is configured (SMS_DRIVER=africastalking).
+        $this->app->singleton(SmsSender::class, fn () => config('services.sms.driver') === 'africastalking'
+            ? new AfricasTalkingSmsSender(
+                (string) config('services.africastalking.username'),
+                (string) config('services.africastalking.api_key'),
+                config('services.africastalking.sender_id') ?: null,
+            )
+            : new LogSmsSender);
     }
 
     /**

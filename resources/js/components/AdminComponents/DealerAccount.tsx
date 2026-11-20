@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { type Variants, motion, AnimatePresence } from "framer-motion";
-import { AlertTriangle, CheckCircle2, CreditCard, Eye, FileCheck, Upload, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CreditCard, Eye, FileCheck, Fuel, Gauge, Lock, ShieldCheck, Timer, Upload, X } from "lucide-react";
 import LoadState from "../LoadState";
 import { api } from "@/lib/api";
 import { fieldErrors } from "@/lib/errors";
 import { useApi } from "@/lib/useApi";
 import { PAYMENT_LABEL, ksh, longDate } from "@/lib/format";
 import { DOC_STATE_LABEL, DOC_STATE_STYLE, NEEDS_UPLOAD } from "@/lib/compliance";
-import type { ReceivedMethod } from "@/types/models";
+import type { ReceivedMethod, RentalPolicy } from "@/types/models";
 import type { DealerDocument, MissingDocument, SubscriptionCharge, SubscriptionPlan } from "@/types/platform";
 
 interface SubscriptionData {
@@ -235,21 +235,127 @@ function ComplianceTab() {
   );
 }
 
+const POLICY_FIELDS: { key: Exclude<keyof RentalPolicy, "included_km_per_day">; label: string; hint: string; icon: typeof Fuel; suffix: string; max: number }[] = [
+  { key: "deposit_amount", label: "Security deposit", hint: "Taken at handover, held by you, and settled when the car comes back. 0 for none.", icon: ShieldCheck, suffix: "KSh", max: 1_000_000 },
+  { key: "late_grace_minutes", label: "Grace period on returns", hint: "How late a car can come back before late fees start.", icon: Timer, suffix: "min", max: 1440 },
+  { key: "late_fee_percent", label: "Late fee per started hour", hint: "As a share of the daily rate. Capped at one day's rate for each day late.", icon: Timer, suffix: "%", max: 100 },
+  { key: "fuel_charge_per_percent", label: "Fuel shortfall", hint: "Charged for each % of the tank below the level at pickup.", icon: Fuel, suffix: "KSh / %", max: 10_000 },
+  { key: "extra_km_rate", label: "Extra mileage", hint: "Charged per km over the daily allowance, when there is one.", icon: Gauge, suffix: "KSh / km", max: 10_000 },
+];
+
+function PolicyTab() {
+  const { data, loading, error, reload } = useApi<{ data: RentalPolicy; can_edit: boolean }>("/api/dealer-policy");
+  if (!data) return <LoadState loading={loading} error={error} onRetry={reload} />;
+  return <PolicyForm key={JSON.stringify(data.data)} policy={data.data} canEdit={data.can_edit} onSaved={reload} />;
+}
+
+function PolicyForm({ policy, canEdit, onSaved }: { policy: RentalPolicy; canEdit: boolean; onSaved: () => void }) {
+  const [form, setForm] = useState<Record<keyof RentalPolicy, string>>(() =>
+    Object.fromEntries(Object.entries(policy).map(([k, v]) => [k, v === null ? "" : String(v)])) as Record<keyof RentalPolicy, string>);
+  const [limited, setLimited] = useState(policy.included_km_per_day !== null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const n = (k: keyof RentalPolicy) => Number(form[k]) || 0;
+
+  const save = async () => {
+    setSaving(true);
+    setErrors({});
+    setSaved(false);
+    try {
+      await api("/api/dealer-policy", {
+        method: "PUT",
+        body: { ...Object.fromEntries(POLICY_FIELDS.map((f) => [f.key, n(f.key)])), included_km_per_day: limited ? n("included_km_per_day") || null : null },
+      });
+      setSaved(true);
+      onSaved();
+    } catch (err) {
+      setErrors(fieldErrors(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // A worked example on a KSh 5,000/day car, so the numbers mean something.
+  const rate = 5000;
+  const example = [
+    `3 h past the grace period: ${ksh(Math.min(3 * Math.round((rate * n("late_fee_percent")) / 100), rate))}`,
+    `returned 20% emptier: ${ksh(20 * n("fuel_charge_per_percent"))}`,
+    ...(limited && n("included_km_per_day") ? [`100 km over the allowance: ${ksh(100 * n("extra_km_rate"))}`] : []),
+  ];
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className={`${card} p-6 lg:col-span-2 space-y-5`}>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="font-black text-slate-900 dark:text-white">Rental policy</h3>
+            <p className="text-xs text-slate-500 mt-0.5">Customers see this before they book. Charges are before VAT and are added to the invoice at return.</p>
+          </div>
+          {!canEdit && <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-slate-400 shrink-0"><Lock className="w-3 h-3" /> Managers only</span>}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          {POLICY_FIELDS.map((f) => (
+            <label key={f.key} className="block">
+              <span className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5"><f.icon className="w-3.5 h-3.5" /> {f.label}</span>
+              <div className="relative">
+                <input type="number" min={0} max={f.max} value={form[f.key]} disabled={!canEdit} aria-label={f.label}
+                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} className={`${inputClass} pr-20 disabled:opacity-60`} />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{f.suffix}</span>
+              </div>
+              <span className="block text-[11px] text-slate-400 mt-1">{f.hint}</span>
+              {errors[f.key] && <span className="block text-xs text-rose-500 mt-1">{errors[f.key]}</span>}
+            </label>
+          ))}
+          <div>
+            <span className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5"><Gauge className="w-3.5 h-3.5" /> Mileage allowance</span>
+            <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 mb-2">
+              <input type="checkbox" checked={!limited} disabled={!canEdit} onChange={(e) => setLimited(!e.target.checked)} className="accent-blue-600" /> Unlimited mileage
+            </label>
+            {limited && (
+              <div className="relative">
+                <input type="number" min={1} max={5000} value={form.included_km_per_day} disabled={!canEdit} aria-label="Kilometres included per day"
+                  onChange={(e) => setForm({ ...form, included_km_per_day: e.target.value })} className={`${inputClass} pr-20 disabled:opacity-60`} />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">km / day</span>
+              </div>
+            )}
+            {errors.included_km_per_day && <span className="block text-xs text-rose-500 mt-1">{errors.included_km_per_day}</span>}
+          </div>
+        </div>
+        {errors.form && <p className="text-sm text-rose-600">{errors.form}</p>}
+        {canEdit && (
+          <div className="flex items-center justify-end gap-3 pt-2">
+            {saved && <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4" /> Saved</span>}
+            <button onClick={save} disabled={saving} className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold disabled:opacity-50">{saving ? "Saving…" : "Save policy"}</button>
+          </div>
+        )}
+      </div>
+      <div className={`${card} p-6 space-y-3 h-fit`}>
+        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">On a {ksh(rate)} / day car</p>
+        <ul className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+          {example.map((line) => <li key={line}>{line.charAt(0).toUpperCase() + line.slice(1)}</li>)}
+        </ul>
+        <p className="text-xs text-slate-500">Plus 16% VAT. Bookings keep the deposit set when they were made; new rules apply to returns from now on.</p>
+      </div>
+    </div>
+  );
+}
+
 export default function DealerAccount() {
-  const [tab, setTab] = useState<"plan" | "compliance">("plan");
+  const [tab, setTab] = useState<"plan" | "policy" | "compliance">("plan");
   return (
     <motion.div variants={{ show: { transition: { staggerChildren: 0.1 } } }} initial="hidden" animate="show" className="space-y-6 pb-10">
       <motion.div variants={itemVariants}>
         <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Plan & Compliance</h2>
-        <p className="text-sm text-slate-500 mt-1">Your DriveFleet subscription, what you owe, and the licences and certificates we need on file.</p>
+        <p className="text-sm text-slate-500 mt-1">Your DriveFleet subscription, your rental policy, and the licences and certificates we need on file.</p>
       </motion.div>
       <motion.div variants={itemVariants} className="flex gap-1 border-b border-slate-200 dark:border-slate-800">
-        {([["plan", "Plan & Billing"], ["compliance", "Compliance Documents"]] as const).map(([id, label]) => (
+        {([["plan", "Plan & Billing"], ["policy", "Rental Policy"], ["compliance", "Compliance Documents"]] as const).map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)} aria-pressed={tab === id}
             className={`px-4 py-2.5 text-sm font-bold ${tab === id ? "text-blue-600 border-b-2 border-blue-600 -mb-px" : "text-slate-500 dark:text-slate-400"}`}>{label}</button>
         ))}
       </motion.div>
-      <motion.div variants={itemVariants}>{tab === "plan" ? <PlanTab /> : <ComplianceTab />}</motion.div>
+      <motion.div variants={itemVariants}>{tab === "plan" ? <PlanTab /> : tab === "policy" ? <PolicyTab /> : <ComplianceTab />}</motion.div>
     </motion.div>
   );
 }

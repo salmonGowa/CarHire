@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PHP_VERSION: "8.4"
+  NODE_VERSION: "22"
+  DB_CONNECTION: mysql
+  DB_HOST: 127.0.0.1
+  DB_PORT: 3306
+  DB_DATABASE: drivefleet
+  DB_USERNAME: root
+  DB_PASSWORD: root
+
+jobs:
+  backend:
+    name: PHP tests & style
+    runs-on: ubuntu-latest
+    env:
+      # phpunit.xml's DB_DATABASE doesn't override a variable that's already set.
+      DB_DATABASE: drivefleet_test
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: drivefleet_test
+        ports: ["3306:3306"]
+        options: --health-cmd="mysqladmin ping -proot" --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: gd, pdo_mysql, intl, bcmath, zip
+          coverage: none
+      - uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: cp .env.example .env && php artisan key:generate
+      - name: Code style (Pint)
+        run: vendor/bin/pint --test
+      - name: PHPUnit
+        run: php artisan test
+
+  frontend:
+    name: Lint, types & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run types
+      - run: npx vite build
+
+  browser:
+    name: Browser tests (${{ matrix.suite }})
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    env:
+      PHP_CLI_SERVER_WORKERS: 4
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [e2e, ui-audit]
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: drivefleet
+        ports: ["3306:3306"]
+        options: --health-cmd="mysqladmin ping -proot" --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: gd, pdo_mysql, intl, bcmath, zip
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: npm ci
+      - run: cp .env.example .env && php artisan key:generate
+      - run: npx vite build
+      - run: php artisan migrate --force
+      - run: npx playwright install --with-deps chromium
+      - name: Playwright (${{ matrix.suite }})
+        run: npx playwright test --project=${{ matrix.suite }}
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-${{ matrix.suite }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

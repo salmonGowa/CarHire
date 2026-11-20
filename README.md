@@ -46,6 +46,24 @@ php artisan serve
 | `npm run build` | Type-check (`tsc`) and build to `public/build` |
 | `npm run types` | Type-check only                               |
 | `npm run lint`  | ESLint over `resources/js`                    |
+| `npm run test:e2e` | Browser tests of the main user flows (Playwright) |
+| `npm run test:ui-audit` | Every page at desktop and phone width, light and dark: layout and error checks plus screenshots |
+
+## Testing
+
+- **Backend:** `php artisan test` runs the PHPUnit feature tests against the
+  `drivefleet_test` database (see `phpunit.xml`). `vendor/bin/pint --test` checks
+  code style.
+- **Browser:** `npm run test:e2e` and `npm run test:ui-audit` drive Chromium
+  against the app at `http://127.0.0.1:8000` (they start `php artisan serve` if
+  nothing is running there; set `E2E_BASE_URL` to use another address). Run
+  `npx playwright install chromium` once first. **They reseed the database in
+  `.env` with `migrate:fresh --seed`**, so use a database you don't mind
+  resetting. Failures leave screenshots and traces in `test-results/`; audit
+  screenshots are there too.
+- **CI:** `.github/workflows/ci.yml` runs all of the above on every push to
+  `main` and on pull requests: PHP tests and Pint, lint/types/build, then both
+  browser suites against a MySQL service. Reports are uploaded as artifacts.
 
 ## Layout
 

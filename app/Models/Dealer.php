@@ -11,7 +11,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'name', 'city', 'county', 'address', 'phone', 'email', 'website', 'status', 'tier', 'subscription_plan_id', 'license_no', 'tax_pin', 'notes',
+    'name', 'city', 'county', 'address', 'phone', 'email', 'website', 'status', 'tier', 'subscription_plan_id', 'license_no',
+    'deposit_amount', 'late_grace_minutes', 'late_fee_percent', 'fuel_charge_per_percent', 'included_km_per_day', 'extra_km_rate', 'tax_pin', 'notes',
     'owner_name', 'owner_phone', 'owner_email', 'owner_national_id', 'manager_name', 'manager_phone', 'manager_email',
 ])]
 class Dealer extends Model
@@ -23,6 +24,12 @@ class Dealer extends Model
     {
         return [
             'status' => DealerStatus::class,
+            'deposit_amount' => 'integer',
+            'late_grace_minutes' => 'integer',
+            'late_fee_percent' => 'integer',
+            'fuel_charge_per_percent' => 'integer',
+            'included_km_per_day' => 'integer',
+            'extra_km_rate' => 'integer',
         ];
     }
 
@@ -60,6 +67,19 @@ class Dealer extends Model
     public function subscriptionCharges(): HasMany
     {
         return $this->hasMany(SubscriptionCharge::class);
+    }
+
+    /** The rental terms customers agree to when they book with this dealer. */
+    public function policy(): array
+    {
+        return [
+            'deposit_amount' => $this->deposit_amount,
+            'late_grace_minutes' => $this->late_grace_minutes,
+            'late_fee_percent' => $this->late_fee_percent,
+            'fuel_charge_per_percent' => $this->fuel_charge_per_percent,
+            'included_km_per_day' => $this->included_km_per_day,
+            'extra_km_rate' => $this->extra_km_rate,
+        ];
     }
 
     /** Whether the dealer's plan leaves room for another staff login (null when it does, else the reason). */

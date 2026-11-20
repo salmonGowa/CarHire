@@ -20,6 +20,8 @@ use Illuminate\Support\Str;
     'customer_name', 'customer_email', 'customer_phone', 'customer_id_number',
     'pickup_at', 'return_at', 'pickup_location', 'days', 'daily_rate', 'subtotal', 'vat', 'total',
     'payment_method', 'status', 'rating', 'cancelled_at',
+    'deposit_amount', 'deposit_received', 'deposit_method', 'deposit_reference', 'deposit_received_at', 'deposit_applied', 'deposit_refunded',
+    'deposit_refund_method', 'deposit_refund_reference', 'deposit_settled_at', 'picked_up_at', 'returned_at', 'overdue_escalated_at',
 ])]
 class Booking extends Model
 {
@@ -45,6 +47,15 @@ class Booking extends Model
             'pickup_reminded_at' => 'datetime',
             'return_reminded_at' => 'datetime',
             'overdue_notified_at' => 'datetime',
+            'overdue_escalated_at' => 'datetime',
+            'deposit_received_at' => 'datetime',
+            'deposit_settled_at' => 'datetime',
+            'picked_up_at' => 'datetime',
+            'returned_at' => 'datetime',
+            'deposit_amount' => 'integer',
+            'deposit_received' => 'integer',
+            'deposit_applied' => 'integer',
+            'deposit_refunded' => 'integer',
             'replied_at' => 'datetime',
             'discount' => 'integer',
             'daily_rate' => 'integer',
@@ -147,6 +158,30 @@ class Booking extends Model
     /**
      * An active rental whose return time has passed.
      */
+    /** @return HasMany<BookingInspection, $this> */
+    public function inspections(): HasMany
+    {
+        return $this->hasMany(BookingInspection::class);
+    }
+
+    /** @return HasMany<BookingCharge, $this> */
+    public function charges(): HasMany
+    {
+        return $this->hasMany(BookingCharge::class);
+    }
+
+    /** @return HasMany<BookingExtension, $this> */
+    public function extensions(): HasMany
+    {
+        return $this->hasMany(BookingExtension::class)->latest('id');
+    }
+
+    /** Deposit taken at handover that hasn't been applied or refunded yet. */
+    public function depositHeld(): int
+    {
+        return max(0, $this->deposit_received - $this->deposit_applied - $this->deposit_refunded);
+    }
+
     public function isOverdue(): bool
     {
         return $this->status === BookingStatus::Active && $this->return_at->isPast();

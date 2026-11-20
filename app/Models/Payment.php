@@ -14,6 +14,7 @@ use Illuminate\Support\Str;
 #[Fillable([
     'reference', 'invoice_id', 'booking_id', 'dealer_id', 'customer_id', 'amount', 'vat', 'commission',
     'method', 'transaction_code', 'status', 'paid_at', 'refunded_at', 'recorded_by', 'payout_id', 'notes',
+    'refund_method', 'refund_reference', 'refund_reason', 'refunded_by',
 ])]
 class Payment extends Model
 {

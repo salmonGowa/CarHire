@@ -5,10 +5,10 @@ export type ButtonSize = "xs" | "sm" | "md" | "lg";
 
 const variants: Record<ButtonVariant, string> = {
   primary:   "bg-blue-600 hover:bg-blue-500 text-white border border-blue-600 hover:border-blue-500",
-  secondary: "bg-white/5 dark:bg-slate-800 hover:bg-white/10 text-slate-200 border border-slate-700 hover:border-slate-500",
-  ghost:     "bg-transparent hover:bg-white/5 text-slate-400 hover:text-slate-200 border border-transparent",
-  danger:    "bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/40",
-  success:   "bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/40",
+  secondary: "bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 hover:border-slate-400 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 dark:hover:border-slate-500",
+  ghost:     "bg-transparent hover:bg-slate-100 text-slate-500 hover:text-slate-800 border border-transparent dark:hover:bg-white/5 dark:text-slate-400 dark:hover:text-slate-200",
+  danger:    "bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 hover:border-rose-600 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/40",
+  success:   "bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 hover:border-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/40",
   gold:      "bg-amber-500 hover:bg-amber-400 text-black border border-amber-500",
 };
 

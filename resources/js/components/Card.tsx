@@ -56,13 +56,14 @@ export function Tr({ children, onClick, className = "" }: { children?: ReactNode
 
 export function Td({ children, className = "", label, colSpan }: { children?: ReactNode; className?: string; label?: ReactNode; colSpan?: number }) {
   return (
-    <td colSpan={colSpan} className={`flex items-center justify-between sm:table-cell px-2 py-2 sm:px-6 sm:py-5 text-sm text-slate-700 dark:text-slate-300 ${className}`}>
+    <td colSpan={colSpan} className={`flex items-start justify-between gap-4 sm:table-cell px-2 py-2 sm:px-6 sm:py-5 text-sm text-slate-700 dark:text-slate-300 ${className}`}>
       {label && (
-        <span className="sm:hidden text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-4">
+        <span className="sm:hidden pt-0.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
           {label}
         </span>
       )}
-      <div className="text-right sm:text-left truncate">
+      {/* On phones each row is a card: let long values wrap instead of being clipped. */}
+      <div className="min-w-0 text-right sm:text-left [overflow-wrap:anywhere]">
         {children}
       </div>
     </td>

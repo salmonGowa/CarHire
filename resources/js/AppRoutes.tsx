@@ -17,7 +17,6 @@ import CustomerDashboard from "./pages/CustomerDashboard";
 // Customer Components
 import CustomerProfile from "./components/CustomerComponents/CustomerProfile";
 import CustomerSaved from "./components/CustomerComponents/CustomerSaved";
-import PreferencesSection from "./components/CustomerComponents/CustomerPreference";
 import GlobalRevenue from "./components/SuperAdminComponents/GlobalRevenue";
 import GlobalRentals from "./components/SuperAdminComponents/GlobalRentals";
 import SubscriptionsManagement from "./components/SuperAdminComponents/SubscriptionsManagement";
@@ -168,7 +167,7 @@ export default function App() {
               <Route path="customer-rewards" element={<CustomerRewards />} />
               <Route path="customer-support" element={<CustomerSupport />} />
               <Route path="customer-complaint" element={<CustomerFileComplaint />} />
-              <Route path="preferences" element={<PreferencesSection />} />
+              <Route path="preferences" element={<Navigate to="/customer-profile" replace />} />
             </Route>
           </Routes>
         </AuthProvider>

@@ -1,331 +1,117 @@
-import { useState } from "react";
-import { type Variants, motion, AnimatePresence } from "framer-motion";
-import Button from "../Button";
+import { useState, type FormEvent } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { AlertTriangle, Info, KeyRound, LogOut, Trash2, X } from "lucide-react";
 import Input from "../Input";
-import { 
-  Lock, CheckCircle2, AlertTriangle, Smartphone, 
-  MonitorSmartphone, Laptop, ChevronDown, Trash2, 
-  ShieldCheck, KeyRound, LogOut, X, ShieldAlert
-} from "lucide-react";
+import Button from "../Button";
+import { AccountCard, SectionHeading, Toast } from "./AccountUi";
+import { api } from "@/lib/api";
+import { errorMessage, fieldErrors } from "@/lib/errors";
+import { useToast } from "@/lib/useToast";
 
-// --- Mock Data ---
-const ACTIVE_SESSIONS = [
-  { id: 1, device: "MacBook Pro - Safari", location: "Nairobi, KE", time: "Active Now", type: "desktop", current: true },
-  { id: 2, device: "iPhone 14 Pro - App", location: "Nairobi, KE", time: "2 hours ago", type: "mobile", current: false },
-  { id: 3, device: "Windows PC - Chrome", location: "Mombasa, KE", time: "3 days ago", type: "desktop", current: false },
-];
-
-// --- Animation Variants ---
-const containerVariants: Variants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } };
-const itemVariants: Variants = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
-
-export default function SecuritySection() {
-  const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
+export default function CustomerSecuritySection() {
+  const [pw, setPw] = useState({ current_password: "", password: "", password_confirmation: "" });
   const [pwErrors, setPwErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<{ message: string; icon: string } | null>(null);
-  
-  const [twoFA, setTwoFA] = useState(false);
-  const [showSessions, setShowSessions] = useState(false);
-  
-  // Delete Modal State
-  const [showDeleteModal, setDeleteModal] = useState(false);
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [confirm, setConfirm] = useState<"signout" | "delete" | null>(null);
+  const [password, setPassword] = useState("");
+  const [typed, setTyped] = useState("");
+  const [dialogError, setDialogError] = useState("");
+  const { toast, show } = useToast();
 
-  // --- Password Strength Logic ---
-  const strength = (() => {
-    const p = pwForm.next;
-    if (!p) return 0;
-    let s = 0;
-    if (p.length >= 8) s++;
-    if (/[A-Z]/.test(p)) s++;
-    if (/[0-9]/.test(p)) s++;
-    if (/[^A-Za-z0-9]/.test(p)) s++;
-    return s;
-  })();
+  const strength = [pw.password.length >= 8, /[A-Z]/.test(pw.password) && /[a-z]/.test(pw.password), /\d/.test(pw.password), /[^A-Za-z0-9]/.test(pw.password)].filter(Boolean).length;
 
-  const strengthLabels = ["Too Weak", "Weak", "Fair", "Good", "Strong"];
-  const strengthColors = ["bg-slate-200 dark:bg-slate-700", "bg-rose-500", "bg-amber-500", "bg-blue-500", "bg-emerald-500"];
-  const strengthTextColors = ["text-slate-400", "text-rose-500", "text-amber-500", "text-blue-500", "text-emerald-500"];
-
-  // --- Handlers ---
-  const showToastMsg = (message: string, icon = "check") => {
-    setToast({ message, icon });
-    setTimeout(() => setToast(null), 3000);
+  const changePassword = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const res = await api<{ message: string }>("/api/profile/password", { method: "PUT", body: pw });
+      setPw({ current_password: "", password: "", password_confirmation: "" });
+      setPwErrors({});
+      show(res.message);
+    } catch (err) {
+      setPwErrors(fieldErrors(err));
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const savePw = async () => {
-    const e: Record<string, string> = {};
-    if (!pwForm.current) e.current = "Required";
-    if (!pwForm.next || pwForm.next.length < 8) e.next = "Min 8 characters";
-    if (pwForm.next !== pwForm.confirm) e.confirm = "Passwords don't match";
-    
-    setPwErrors(e);
-    if (Object.keys(e).length) return;
-    
-    setSaving(true);
-    await new Promise((r) => setTimeout(r, 900)); // Simulate API call
-    setSaving(false);
-    
-    showToastMsg("Password updated successfully");
-    setPwForm({ current: "", next: "", confirm: "" });
+  const closeDialog = () => { setConfirm(null); setPassword(""); setTyped(""); setDialogError(""); };
+  const runDialog = async () => {
+    try {
+      if (confirm === "signout") {
+        const res = await api<{ message: string }>("/api/profile/sign-out-others", { method: "POST", body: { password } });
+        closeDialog();
+        show(res.message);
+      } else {
+        await api("/api/profile", { method: "DELETE", body: { password } });
+        window.location.assign("/");
+      }
+    } catch (err) {
+      setDialogError(fieldErrors(err).password ?? errorMessage(err));
+    }
   };
 
   return (
-    <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-8 pb-10 relative">
-      
-      {/* ── Header ── */}
-      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Security & Privacy</h2>
-          <p className="text-sm text-slate-500 mt-1">Protect your account and manage active devices.</p>
-        </div>
-      </motion.div>
+    <div className="space-y-6 pb-10">
+      <SectionHeading title="Security & Privacy" sub="Your password, where you're signed in, and closing your account." />
 
-      {/* ── Security Health Grid ── */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        {[
-          { label: "Password Health", status: "Strong", ok: true, Icon: KeyRound },
-          { label: "Two-Factor Auth", status: twoFA ? "Enabled" : "Disabled", ok: twoFA, Icon: Smartphone },
-          { label: "Email Address", status: "Verified", ok: true, Icon: ShieldCheck },
-        ].map((item, i) => (
-          <div
-            key={i}
-            className={`flex items-center gap-4 p-6 rounded-[2rem] border transition-colors ${
-              item.ok 
-                ? "bg-emerald-50/50 dark:bg-emerald-500/5 border-emerald-200 dark:border-emerald-500/20" 
-                : "bg-amber-50/50 dark:bg-amber-500/5 border-amber-200 dark:border-amber-500/20"
-            }`}
-          >
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm ${
-              item.ok ? "bg-emerald-500 text-white shadow-emerald-500/20" : "bg-amber-500 text-white shadow-amber-500/20"
-            }`}>
-              <item.Icon className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">
-                {item.label}
-              </p>
-              <p className={`text-lg font-black ${item.ok ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"}`}>
-                {item.status}
-              </p>
-            </div>
-          </div>
-        ))}
-      </motion.div>
-
-      {/* ── Two Column Layout for Passwords & Sessions ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
-        {/* Left Column: Password Update */}
-        <motion.div variants={itemVariants} className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-6 sm:p-8 shadow-sm h-fit">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl">
-              <Lock className="w-5 h-5" />
-            </div>
-            <h3 className="text-xl font-black text-slate-900 dark:text-white">Change Password</h3>
-          </div>
-
-          <div className="space-y-5">
-            <Input
-              label="Current Password"
-              type="password"
-              value={pwForm.current}
-              onChange={(e) => setPwForm({ ...pwForm, current: e.target.value })}
-              error={pwErrors.current}
-            />
-            
-            <div className="space-y-3">
-              <Input
-                label="New Password"
-                type="password"
-                value={pwForm.next}
-                onChange={(e) => setPwForm({ ...pwForm, next: e.target.value })}
-                error={pwErrors.next}
-              />
-              {/* Animated Password Strength Meter */}
-              {pwForm.next && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="space-y-2">
-                  <div className="flex gap-2">
-                    {[1, 2, 3, 4].map((i) => (
-                      <div key={i} className="flex-1 h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                        <motion.div 
-                          initial={{ width: 0 }} 
-                          animate={{ width: i <= strength ? "100%" : "0%" }} 
-                          className={`h-full ${strengthColors[strength]}`} 
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  <p className={`text-[11px] font-black uppercase tracking-widest ${strengthTextColors[strength]}`}>
-                    {strengthLabels[strength]}
-                  </p>
-                </motion.div>
-              )}
-            </div>
-
-            <Input
-              label="Confirm New Password"
-              type="password"
-              value={pwForm.confirm}
-              onChange={(e) => setPwForm({ ...pwForm, confirm: e.target.value })}
-              error={pwErrors.confirm}
-            />
-
-            <Button fullWidth loading={saving} onClick={savePw} className="py-3.5 mt-2">
-              Update Password
-            </Button>
-          </div>
-        </motion.div>
-
-        {/* Right Column: 2FA and Sessions */}
-        <div className="space-y-8">
-          
-          {/* 2FA Card */}
-          <motion.div variants={itemVariants} className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-6 sm:p-8 shadow-sm flex items-start sm:items-center justify-between gap-6 cursor-pointer group hover:border-blue-500/50 transition-colors" onClick={() => setTwoFA(!twoFA)}>
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 rounded-xl shrink-0">
-                <MonitorSmartphone className="w-5 h-5" />
+      <AccountCard title="Change password" icon={<KeyRound className="w-5 h-5 text-blue-500" />} sub="Changing it signs you out everywhere else.">
+        <form onSubmit={changePassword} className="space-y-4 max-w-lg">
+          <Input label="Current password" type="password" value={pw.current_password} onChange={(e) => setPw({ ...pw, current_password: e.target.value })} error={pwErrors.current_password} autoComplete="current-password" required />
+          <div>
+            <Input label="New password" type="password" value={pw.password} onChange={(e) => setPw({ ...pw, password: e.target.value })} error={pwErrors.password} autoComplete="new-password" required />
+            {pw.password && (
+              <div className="mt-2 flex items-center gap-2" aria-live="polite">
+                <div className="flex gap-1 flex-1">{[0, 1, 2, 3].map((i) => <span key={i} className={`h-1.5 flex-1 rounded-full ${i < strength ? (strength >= 3 ? "bg-emerald-500" : "bg-amber-500") : "bg-slate-200 dark:bg-slate-700"}`} />)}</div>
+                <span className="text-xs font-bold text-slate-500">{pw.password.length < 8 ? "At least 8 characters" : strength >= 3 ? "Strong" : "Add numbers or symbols"}</span>
               </div>
-              <div>
-                <h3 className="text-base font-black text-slate-900 dark:text-white">Two-Factor Auth</h3>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">Add an extra layer of security requiring an OTP from your phone to login.</p>
-              </div>
-            </div>
-            {/* Custom Animated Toggle */}
-            <div className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-300 ${twoFA ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700'}`}>
-              <motion.span 
-                animate={{ x: twoFA ? 22 : 4 }} 
-                transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                className="inline-block h-5 w-5 rounded-full bg-white shadow-sm" 
-              />
-            </div>
-          </motion.div>
-
-          {/* Active Sessions */}
-          <motion.div variants={itemVariants} className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-6 sm:p-8 shadow-sm">
-            <button onClick={() => setShowSessions(!showSessions)} className="flex items-center justify-between w-full focus:outline-none group">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl text-slate-500">
-                  <Laptop className="w-5 h-5" />
-                </div>
-                <h3 className="text-base font-black text-slate-900 dark:text-white group-hover:text-blue-500 transition-colors">Active Sessions</h3>
-              </div>
-              <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${showSessions ? "rotate-180" : ""}`} />
-            </button>
-            
-            <AnimatePresence>
-              {showSessions && (
-                <motion.div 
-                  initial={{ height: 0, opacity: 0 }} 
-                  animate={{ height: "auto", opacity: 1 }} 
-                  exit={{ height: 0, opacity: 0 }} 
-                  className="overflow-hidden"
-                >
-                  <div className="pt-6 space-y-3">
-                    {ACTIVE_SESSIONS.map((s) => (
-                      <div key={s.id} className={`flex items-center justify-between gap-4 p-4 rounded-2xl border transition-colors ${s.current ? "bg-blue-50/50 dark:bg-blue-500/5 border-blue-200 dark:border-blue-500/20" : "bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800"}`}>
-                        <div className="flex items-center gap-3 min-w-0">
-                          {s.type === 'desktop' ? <Laptop className="w-4 h-4 text-slate-400" /> : <Smartphone className="w-4 h-4 text-slate-400" />}
-                          <div className="min-w-0">
-                            <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{s.device}</p>
-                            <p className="text-[10px] font-medium text-slate-500 mt-0.5">{s.location} • {s.time}</p>
-                          </div>
-                        </div>
-                        {s.current ? (
-                          <span className="px-2.5 py-1 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 rounded-md text-[9px] font-black uppercase tracking-widest shrink-0">Current</span>
-                        ) : (
-                          <button className="p-2 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-slate-400 hover:text-rose-600 rounded-xl transition-colors shrink-0" title="Revoke Session">
-                            <LogOut className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        </div>
-      </div>
-
-      {/* ── Danger Zone ── */}
-      <motion.div variants={itemVariants} className="p-6 sm:p-8 bg-rose-50 dark:bg-rose-500/5 border border-rose-200 dark:border-rose-500/20 rounded-[2.5rem] mt-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <ShieldAlert className="w-5 h-5 text-rose-500" />
-            <h3 className="text-lg font-black text-rose-600 dark:text-rose-400">Danger Zone</h3>
+            )}
           </div>
-          <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed max-w-xl">
-            Deleting your account is permanent. All active rentals, saved vehicles, payment methods, and history will be permanently erased.
-          </p>
-        </div>
-        <Button variant="danger" className="shrink-0 px-6 py-3 shadow-rose-500/20" onClick={() => setDeleteModal(true)}>
-          <Trash2 className="w-4 h-4 mr-2" /> Delete Account
-        </Button>
-      </motion.div>
+          <Input label="Confirm new password" type="password" value={pw.password_confirmation} onChange={(e) => setPw({ ...pw, password_confirmation: e.target.value })} autoComplete="new-password" required />
+          <Button type="submit" disabled={saving}>{saving ? "Updating…" : "Update Password"}</Button>
+        </form>
+      </AccountCard>
 
-      {/* ── Delete Confirmation Modal ── */}
+      <AccountCard title="Signed-in devices" icon={<LogOut className="w-5 h-5 text-violet-500" />}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <p className="text-sm text-slate-600 dark:text-slate-400">Lost a phone or used a shared computer? Sign out of DriveFleet everywhere except this browser.</p>
+          <Button variant="secondary" onClick={() => setConfirm("signout")} className="shrink-0">Sign out other devices</Button>
+        </div>
+        <p className="flex items-start gap-2 text-xs text-slate-500"><Info className="w-4 h-4 shrink-0" /> Two-step sign-in isn't available yet.</p>
+      </AccountCard>
+
+      <AccountCard title="Close account" icon={<Trash2 className="w-5 h-5 text-rose-500" />} className="border-rose-200 dark:border-rose-900/40">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <p className="text-sm text-slate-600 dark:text-slate-400">Deletes your login, profile and uploaded ID documents. Dealers keep the booking and invoice records they're required to hold. You can't close your account with a booking in progress or money owed.</p>
+          <Button variant="danger" onClick={() => setConfirm("delete")} className="shrink-0">Close my account</Button>
+        </div>
+      </AccountCard>
+
       <AnimatePresence>
-        {showDeleteModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" />
-            
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }} 
-              animate={{ opacity: 1, scale: 1, y: 0 }} 
-              exit={{ opacity: 0, scale: 0.95, y: 20 }} 
-              className="relative w-full max-w-md bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl p-8"
-            >
-              <div className="w-16 h-16 rounded-2xl bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center text-rose-500 mx-auto mb-6 shadow-inner border border-rose-100 dark:border-rose-500/20">
-                <AlertTriangle className="w-8 h-8" />
+        {confirm && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm" onClick={closeDialog}>
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} role="dialog" aria-modal="true" aria-label={confirm === "delete" ? "Close account" : "Sign out other devices"}
+              className="w-full max-w-md bg-white dark:bg-[#0B1120] rounded-[2rem] border border-slate-200 dark:border-slate-800 p-6 sm:p-8 space-y-4" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start justify-between">
+                <h3 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  {confirm === "delete" ? <><AlertTriangle className="w-5 h-5 text-rose-500" /> Close your account?</> : "Sign out other devices?"}
+                </h3>
+                <button onClick={closeDialog} aria-label="Close" className="text-slate-400"><X className="w-5 h-5" /></button>
               </div>
-              
-              <h3 className="text-2xl font-black text-slate-900 dark:text-white text-center mb-2">Delete Account?</h3>
-              <p className="text-sm text-slate-500 text-center leading-relaxed mb-6">
-                This action is <span className="font-bold text-rose-500">irreversible</span>. To confirm, please type <strong className="text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">DELETE</strong> below.
-              </p>
-              
-              <Input 
-                placeholder='Type "DELETE"' 
-                value={deleteConfirmText}
-                onChange={(e) => setDeleteConfirmText(e.target.value)}
-                className="text-center font-black tracking-widest text-rose-500 placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400"
-              />
-              
-              <div className="flex gap-3 mt-6">
-                <Button variant="secondary" fullWidth onClick={() => { setDeleteModal(false); setDeleteConfirmText(""); }} className="py-3">
-                  Cancel
-                </Button>
-                <Button 
-                  variant="danger" 
-                  fullWidth 
-                  className={`py-3 transition-all ${deleteConfirmText !== "DELETE" ? "opacity-50 cursor-not-allowed saturate-50" : "shadow-lg shadow-rose-500/30"}`}
-                  disabled={deleteConfirmText !== "DELETE"}
-                >
-                  Confirm Deletion
+              {confirm === "delete" && <p className="text-sm text-slate-600 dark:text-slate-400">This can't be undone. Type <strong>DELETE</strong> and enter your password to confirm.</p>}
+              {confirm === "delete" && <Input label="Type DELETE" value={typed} onChange={(e) => setTyped(e.target.value)} />}
+              <Input label="Your password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} error={dialogError || undefined} autoComplete="current-password" />
+              <div className="flex justify-end gap-3 pt-2">
+                <Button variant="secondary" onClick={closeDialog}>Cancel</Button>
+                <Button variant={confirm === "delete" ? "danger" : "primary"} onClick={runDialog} disabled={!password || (confirm === "delete" && typed !== "DELETE")}>
+                  {confirm === "delete" ? "Close account" : "Sign out others"}
                 </Button>
               </div>
             </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Toast Notification ── */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div 
-            initial={{ opacity: 0, y: 50, scale: 0.9, x: "-50%" }} 
-            animate={{ opacity: 1, y: 0, scale: 1, x: "-50%" }} 
-            exit={{ opacity: 0, y: 20, scale: 0.9, x: "-50%" }}
-            className="fixed bottom-10 left-1/2 z-50 px-6 py-3.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl shadow-2xl flex items-center gap-3 font-bold text-sm border border-slate-800 dark:border-slate-200"
-          >
-            {toast.icon === "check" && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
-            {toast.message}
           </motion.div>
         )}
       </AnimatePresence>
-
-    </motion.div>
+      <Toast message={toast?.message ?? null} error={toast?.error} />
+    </div>
   );
 }

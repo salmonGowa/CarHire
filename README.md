@@ -103,6 +103,12 @@ decides their dashboard; dealer staff belong to a dealership via `dealer_id`.
 | `/api/support-tickets` (+ `/{id}/messages`) | everyone signed in | admins see all tickets and can add internal notes; dealers see their dealership's; others see their own |
 | `/api/admin/subscriptions`, `/api/admin/subscription-plans/{id}`, `/api/admin/dealers/{id}/plan`, `/api/admin/subscription-charges/*` | super admins | plan prices and limits, monthly charges, recording payments |
 | `GET /api/subscription` | dealer staff | the dealer's plan, usage and charges |
+| `/api/profile` (+ `/preferences`, `/password`, `/sign-out-others`, `/documents`), `DELETE /api/profile` | the signed-in user | own details, ID uploads for KYC (private disk), closing a customer account |
+| `GET /api/search?q=` | everyone signed in | top-bar search, limited to what the user's role can see |
+| `/api/dealer-staff` (+ `/{id}`, `/{id}/reset-password`) | dealer staff (changes: dealer managers) | the dealership's own logins; plan staff limit applies |
+| `GET /api/notifications` (+ `/{id}/read`, `/read-all`) | everyone signed in | in-app notifications (database channel) for bookings, payments, support replies, KYC and compliance |
+| `GET /api/rewards`, `GET /api/trips/current` | customers | tier and points from paid trips and reviews; the active or next booking |
+| `GET /api/support-attachments/{id}` | ticket participants | photos/PDFs attached to support messages |
 | `GET/PUT /api/admin/settings` | super admins | runtime platform settings (see below); every change is audited |
 | `GET /api/admin/overview`, `/api/admin/reports?period=7d\|30d\|6m\|ytd\|all`, `/api/admin/integrations` | super admins | dashboard, analytics and live system checks |
 | `/api/hr/*` (employees, attendance, leave, payroll-runs, payslips, documents, reports, summary) | HR managers and super admins | DriveFleet's own staff; documents on the private disk |
@@ -117,8 +123,8 @@ stored on each payment. Online collection (M-PESA STK push, card gateway) and
 KRA eTIMS submission are not connected yet.
 
 Dealer subscriptions are billed on the 1st by `php artisan drivefleet:bill-subscriptions`
-(scheduled monthly, so run `php artisan schedule:work` or a cron entry for
-`schedule:run` in production). Charges fall due after `SUBSCRIPTION_DUE_DAYS`
+(scheduled monthly; `php artisan dev` runs the scheduler for you, and production
+needs a cron entry for `schedule:run`). Charges fall due after `SUBSCRIPTION_DUE_DAYS`
 (default 7); dealers pay outside the app and an admin records the payment.
 Plan vehicle and staff limits are enforced when vehicles or staff logins are added.
 
@@ -129,7 +135,13 @@ cut-off, minimum driver age when a date of birth is on file; dealer staff are
 exempt), customer/dealer sign-up, maintenance mode (everyone but super admins is
 locked out of the API and sign-in), sign-in attempts per minute, idle sign-out
 time and support contacts. VAT stays in `config/drivefleet.php`. The app time
-zone is UTC; set it to `Africa/Nairobi` in `config/app.php` before going live.
+zone defaults to `Africa/Nairobi` (`APP_TIMEZONE`).
+
+Notifications are in-app only: email and SMS aren't connected, though customers'
+channel preferences are saved for when they are. Loyalty points are 1 per
+KSh 100 paid on a completed trip plus 50 per review; redemption isn't built.
+Live Trip shows the booking, dealer and payment details; there is no GPS
+provider, so it says live location is unavailable.
 
 Seed demo data with `php artisan migrate --seed` (all demo passwords are
 `password`). Run the backend tests with `php artisan test`; they use the

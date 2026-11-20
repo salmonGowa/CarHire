@@ -5,6 +5,7 @@ import TempPasswordNotice from "../TempPasswordNotice";
 import { api } from "@/lib/api";
 import { errorMessage, fieldErrors } from "@/lib/errors";
 import { useApi } from "@/lib/useApi";
+import { useUrlId } from "@/lib/useUrlId";
 import { useDebounced } from "@/lib/useDebounced";
 import { ksh, longDate } from "@/lib/format";
 import type { AccountSummary, AdminDealer, AdminDealerDetail } from "@/types/models";
@@ -419,7 +420,7 @@ interface DealerList {
 }
 
 export default function DealersManagement() {
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useUrlId("open");
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");

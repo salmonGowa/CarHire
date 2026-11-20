@@ -11,6 +11,7 @@ import TempPasswordNotice from "../TempPasswordNotice";
 import { api } from "@/lib/api";
 import { errorMessage, fieldErrors } from "@/lib/errors";
 import { useApi } from "@/lib/useApi";
+import { useUrlId } from "@/lib/useUrlId";
 import { useDebounced } from "@/lib/useDebounced";
 import { PAYMENT_LABEL, dateTime, ksh, longDate } from "@/lib/format";
 import type { AdminClient, AdminClientDetail, ReceivedMethod } from "@/types/models";
@@ -419,7 +420,7 @@ interface ClientList {
 }
 
 export default function SuperAdminClients() {
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useUrlId("open");
   const [creating, setCreating] = useState(false);
   const [issued, setIssued] = useState<{ email: string; password: string } | null>(null);
   const [search, setSearch] = useState("");

@@ -9,6 +9,7 @@ import { attachmentError, ticketForm } from "@/lib/support";
 import { api } from "@/lib/api";
 import { errorMessage, fieldErrors } from "@/lib/errors";
 import { useApi } from "@/lib/useApi";
+import { useUrlId } from "@/lib/useUrlId";
 import { useDebounced } from "@/lib/useDebounced";
 import { dateTime } from "@/lib/format";
 import type { Booking } from "@/types/models";
@@ -260,7 +261,7 @@ export default function SupportDesk({ admin = false, bookingsPath, startNew }: {
   const [priority, setPriority] = useState("");
   const [origin, setOrigin] = useState("");
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selected, setSelected] = useUrlId("ticket");
   const [creating, setCreating] = useState(false);
   const [lastStart, setLastStart] = useState<number | null>(null);
   if (startNew && startNew.key !== lastStart) {

@@ -297,14 +297,10 @@ const itemVariants: Variants = {
 
 export default function LandingPage() {
   const { isDark } = useTheme();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
   const [isAnnual, setIsAnnual] = useState(false);
   const countersRef = useRef<(HTMLParagraphElement | null)[]>([]);
 
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 50);
-    window.addEventListener("scroll", handleScroll);
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -346,7 +342,6 @@ export default function LandingPage() {
     countersRef.current.forEach((el) => el && counterObs.observe(el));
 
     return () => {
-      window.removeEventListener("scroll", handleScroll);
       observer.disconnect();
       counterObs.disconnect();
     };

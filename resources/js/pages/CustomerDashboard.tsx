@@ -22,12 +22,6 @@ const ACTIVE_TRIP = {
   bookingId: "BKG-7721A"
 };
 
-const LOYALTY = {
-  tier: "Gold Member",
-  points: 2450,
-  nextTier: 3000,
-  perks: "10% off next SUV rental"
-};
 
 const QUICK_ACTIONS = [
   { icon: PlusCircle, label: "My Trip", to: "/customer-active-trip", color: "text-blue-500", bg: "bg-blue-50 dark:bg-blue-500/10" },
@@ -59,7 +53,6 @@ export default function CustomerDashboard() {
   const RECOMMENDED_CARS = catalog?.data ?? [];
   const RECENT_HISTORY = history?.data ?? [];
   const firstName = user?.name.split(" ")[0] ?? "there";
-  const progressPercentage = (LOYALTY.points / LOYALTY.nextTier) * 100;
 
   return (
     <motion.div 

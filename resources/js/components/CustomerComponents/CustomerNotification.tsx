@@ -34,8 +34,8 @@ export default function CustomerNotification({ profile, onSaved }: { profile: Pr
       </AccountCard>
 
       <AccountCard title="Email and SMS" icon={<Mail className="w-5 h-5 text-violet-500" />}>
-        <p className="flex items-start gap-2 text-xs text-amber-800 dark:text-amber-300 p-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20">
-          <Info className="w-4 h-4 shrink-0" /> DriveFleet doesn't send emails or texts yet. Your choices are saved and will be used once they're switched on.
+        <p className="flex items-start gap-2 text-xs text-slate-500">
+          <Info className="w-4 h-4 shrink-0" /> Account, support and security emails (like password resets) are always sent. Texts go to the phone number on your profile.
         </p>
         <div className="divide-y divide-slate-100 dark:divide-slate-800">
           {CHANNELS.map(({ key, label, desc, Icon }) => (

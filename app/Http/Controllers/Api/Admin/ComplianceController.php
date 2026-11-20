@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Dealer;
 use App\Models\DealerDocument;
+use App\Services\Notifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -74,6 +75,8 @@ class ComplianceController extends Controller
 
         $doc = DealerDocument::create([...$data, 'status' => 'requested', 'requested_by' => $request->user()->id]);
         AuditLog::record('compliance.requested', "Requested {$doc->type} from {$doc->dealer->name}", $doc);
+        app(Notifier::class)->dealerStaff($doc->dealer_id, 'Document requested', "DriveFleet needs your {$doc->type}".
+            ($doc->due_on ? " by {$doc->due_on->format('j M Y')}" : '').'. Upload it under Plan & Compliance.', '/dealer-account', 'warning');
 
         return response()->json(['data' => $this->presentDocument($doc->load('dealer'))], 201);
     }
@@ -113,6 +116,10 @@ class ComplianceController extends Controller
 
         AuditLog::record("compliance.{$data['decision']}", ucfirst($data['decision'])." {$document->type} for {$document->dealer->name}".
             (isset($data['note']) ? ": {$data['note']}" : ''), $document, $data['decision'] === 'rejected' ? 'warning' : 'info');
+
+        app(Notifier::class)->dealerStaff($document->dealer_id, ...($data['decision'] === 'verified'
+            ? ['Document approved', "Your {$document->type} has been verified.", '/dealer-account', 'success']
+            : ['Document rejected', "Your {$document->type} was rejected: {$data['note']}", '/dealer-account', 'warning']));
 
         return response()->json(['data' => $this->presentDocument($document->load(['dealer', 'reviewer']))]);
     }

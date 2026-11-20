@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import VehicleImage from "../components/VehicleImage";
 import { useAuth } from "../components/AuthContext";
 import BookingStatusPill from "../components/StatusPill";
 import { useApi } from "@/lib/useApi";
@@ -102,7 +103,7 @@ export default function CustomerDashboard() {
               {/* Image Placeholder */}
               <div className="h-44 bg-slate-100 dark:bg-slate-800/50 flex items-center justify-center relative overflow-hidden">
                 {car.image_url
-                  ? <img src={car.image_url} alt={car.model} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                  ? <VehicleImage src={car.image_url} alt={car.model} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
                   : <Car className="w-16 h-16 text-slate-300 dark:text-slate-700 transition-transform duration-700 group-hover:scale-110" />}
                 <div className="absolute top-4 left-4 px-2.5 py-1.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 shadow-sm">
                   {car.type}

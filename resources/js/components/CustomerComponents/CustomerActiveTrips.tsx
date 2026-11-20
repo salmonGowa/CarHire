@@ -1,4 +1,5 @@
 import { useState } from "react";
+import VehicleImage from "../VehicleImage";
 import { type Variants, motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import {
@@ -129,7 +130,7 @@ export default function CustomerActiveTrip() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <motion.div variants={itemVariants} className={`${card} space-y-3`}>
             <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><Car className="w-4 h-4" /> Vehicle</h4>
-            {vehicle?.image_url && <img src={vehicle.image_url} alt={vehicle.model} className="w-full h-36 object-cover rounded-2xl" />}
+            {vehicle?.image_url && <VehicleImage src={vehicle.image_url} alt={vehicle.model} className="w-full h-36 object-cover rounded-2xl" />}
             <p className="text-sm text-slate-700 dark:text-slate-300">{[vehicle?.year, vehicle?.type, vehicle && `${vehicle.seats} seats`, vehicle?.transmission, vehicle?.fuel_type].filter(Boolean).join(" · ")}</p>
           </motion.div>
 

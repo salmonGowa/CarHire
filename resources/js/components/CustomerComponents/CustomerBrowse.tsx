@@ -1,4 +1,5 @@
 import { useState } from "react";
+import VehicleImage from "../VehicleImage";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { capitalize, ksh } from "@/lib/format";
@@ -101,7 +102,7 @@ export default function CustomerBrowse() {
               
               {/* Image Section */}
               <div className="relative h-56 overflow-hidden bg-slate-100 dark:bg-slate-900">
-                <img src={vehicle.image_url ?? ""} alt={vehicle.model} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                <VehicleImage src={vehicle.image_url} alt={vehicle.model} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
                 
                 {/* Rating Badge */}
                 {vehicle.rating != null && (

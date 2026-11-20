@@ -1,4 +1,5 @@
 import { useState } from "react";
+import VehicleImage from "../VehicleImage";
 import { useNavigate } from "react-router-dom";
 import { api, ApiError } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
@@ -147,7 +148,7 @@ export default function CustomerRentals() {
               {/* Visible Row */}
               <button onClick={() => setExpandedId(isOpen ? null : r.id)} aria-expanded={isOpen} className="w-full flex items-center gap-4 p-5 sm:p-6 text-left focus:outline-none">
                 <div className="w-12 h-12 rounded-2xl bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center text-slate-400 flex-shrink-0 border border-slate-100 dark:border-slate-700/50 overflow-hidden">
-                  {r.vehicle?.image_url ? <img src={r.vehicle.image_url} alt="" className="w-full h-full object-cover" /> : <Car className="w-6 h-6" />}
+                  {r.vehicle?.image_url ? <VehicleImage src={r.vehicle.image_url} alt="" className="w-full h-full object-cover" /> : <Car className="w-6 h-6" />}
                 </div>
                 
                 <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">

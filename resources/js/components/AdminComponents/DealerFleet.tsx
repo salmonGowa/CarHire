@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from "react";
+import VehicleImage from "../VehicleImage";
 import { api, ApiError } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { VEHICLE_STATUS_LABEL, ksh } from "@/lib/format";
@@ -190,7 +191,7 @@ export default function DealerFleet() {
                 <div className="flex items-center gap-4">
                   <div className="w-16 h-12 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0 group">
                     {car.image_url ? (
-                      <img src={car.image_url} alt={car.model} className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-500" />
+                      <VehicleImage src={car.image_url} alt={car.model} className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-500" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-slate-400"><Car className="w-6 h-6" /></div>
                     )}

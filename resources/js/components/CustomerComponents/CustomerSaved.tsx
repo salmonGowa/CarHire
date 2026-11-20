@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import VehicleImage from "../VehicleImage";
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
@@ -123,8 +124,8 @@ export default function CustomerSaved() {
               >
                 {/* Image Section */}
                 <div className="h-56 bg-slate-100 dark:bg-slate-900 relative overflow-hidden">
-                  <img 
-                    src={car.image_url ?? ""} 
+                  <VehicleImage 
+                    src={car.image_url} 
                     alt={car.model} 
                     className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 ${car.status !== "available" ? 'grayscale opacity-70' : ''}`}
                   />

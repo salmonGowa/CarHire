@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {Search,Layers,Maximize,MapPin,Zap,Battery,AlertTriangle,Cpu,Wifi,Map,Phone,MessageSquare,User,ChevronRight,Lock,Volume2,Lightbulb,CheckCircle2, ArrowLeft,
 } from "lucide-react";
-import { Icon, MAP_DARK_STYLE, MAP_LIGHT_STYLE, stagger, STATUS_CFG } from "../ConstantStyling";
+import { Icon } from "../ConstantStyling";
+import { MAP_DARK_STYLE, MAP_LIGHT_STYLE, stagger, STATUS_CFG } from "@/lib/trackingStyles";
 import DetailPanel from "../DetailPanel";
 import VehicleCard from "../VehicleCard";
 import { VEHICLES_SEED, type Vehicle } from "@/data";
@@ -23,6 +24,202 @@ interface GoogleMapCanvasProps {
   alerts: { msg: string }[];
 }
 
+/** SVG pin for a vehicle marker (red with a badge when it has alerts). */
+const buildMarkerSvg = (v: Vehicle, isSelected: boolean) => {
+  const hasAlert = v.alerts.length > 0;
+  const c = hasAlert ? "#ef4444" : v.color;
+  const s = isSelected ? 1.2 : 1;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(44 * s)}" height="${Math.round(52 * s)}" viewBox="0 0 44 52">
+    <defs>
+      <filter id="ds"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="${c}" flood-opacity="0.5"/></filter>
+    </defs>
+    <g filter="url(#ds)">
+      <path d="M22 2C13.2 2 6 9.2 6 18c0 12 16 32 16 32S38 30 38 18C38 9.2 30.8 2 22 2z" fill="${c}"/>
+      <circle cx="22" cy="18" r="9" fill="white" fill-opacity="0.96"/>
+      <circle cx="22" cy="18" r="5" fill="${c}"/>
+    </g>
+    ${isSelected ? `<circle cx="22" cy="18" r="14" fill="none" stroke="${c}" stroke-width="1.5" opacity="0.5"/>` : ""}
+    ${hasAlert ? `<circle cx="34" cy="8" r="7" fill="#ef4444" stroke="white" stroke-width="2"/><text x="34" y="12" text-anchor="middle" font-size="9" font-weight="900" fill="white">!</text>` : ""}
+  </svg>`;
+};
+
+// Fallback map (no API key / load error)
+const FallbackMap = ({ vehicles, selectedId, onSelect, isDark }: Pick<GoogleMapCanvasProps, "vehicles" | "selectedId" | "onSelect" | "isDark">) => {
+  const DUMMY_POSITIONS = [
+    { left: "44%", top: "42%" },
+    { left: "74%", top: "76%" },
+    { left: "70%", top: "20%" },
+    { left: "26%", top: "60%" },
+    { left: "52%", top: "54%" },
+  ];
+  const ROADS = [
+    "M5,50 Q25,28 50,50 T95,50",
+    "M50,5 L50,95",
+    "M10,28 L90,72",
+    "M18,80 Q42,58 66,80 T95,80",
+    "M22,12 Q50,50 78,88",
+    "M0,50 L100,50",
+  ];
+  return (
+    <div
+      className={`absolute inset-0 ${isDark ? "bg-[#0d1117]" : "bg-[#f0f4f8]"} overflow-hidden`}
+    >
+      <svg
+        className="absolute inset-0 w-full h-full opacity-20"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+      >
+        <defs>
+          <pattern
+            id="fb-grid"
+            width="10"
+            height="10"
+            patternUnits="userSpaceOnUse"
+          >
+            <path
+              d="M 10 0 L 0 0 0 10"
+              fill="none"
+              stroke={isDark ? "#3b82f6" : "#94a3b8"}
+              strokeWidth="0.25"
+            />
+          </pattern>
+        </defs>
+        <rect width="100" height="100" fill="url(#fb-grid)" />
+        {ROADS.map((r, i) => (
+          <g key={i}>
+            <path
+              d={r}
+              fill="none"
+              stroke={isDark ? "#1e3a5f" : "#cbd5e1"}
+              strokeWidth="3"
+            />
+            <path
+              d={r}
+              fill="none"
+              stroke={isDark ? "#3b82f6" : "#93c5fd"}
+              strokeWidth="0.7"
+              opacity="0.7"
+            />
+          </g>
+        ))}
+        {[
+          [-1.2674, 36.8033, "44%", "42%"],
+          [-1.4548, 36.987, "74%", "76%"],
+          [-1.2122, 36.8863, "70%", "20%"],
+          [-1.3167, 36.7195, "26%", "60%"],
+          [-1.2921, 36.7851, "52%", "54%"],
+        ].map((_, i) => (
+          <circle
+            key={i}
+            cx={parseFloat(DUMMY_POSITIONS[i].left)}
+            cy={parseFloat(DUMMY_POSITIONS[i].top)}
+            r="0.6"
+            fill={isDark ? "#475569" : "#94a3b8"}
+            opacity="0.6"
+          />
+        ))}
+      </svg>
+
+      {/* Vehicle pins */}
+      {vehicles.map((v, i) => {
+        const pos = DUMMY_POSITIONS[i] || { left: "50%", top: "50%" };
+        const isSel = v.id === selectedId;
+        return (
+          <button
+            key={v.id}
+            onClick={() => onSelect(v.id)}
+            className={`absolute transform -translate-x-1/2 -translate-y-full transition-all duration-300 ${isSel ? "scale-125 z-10" : "z-0 hover:scale-110"}`}
+            style={pos}
+          >
+            <svg
+              width={isSel ? 48 : 38}
+              height={isSel ? 58 : 46}
+              viewBox="0 0 44 52"
+            >
+              <defs>
+                <filter id={`pin-shadow-${v.id}`}>
+                  <feDropShadow
+                    dx="0"
+                    dy="2"
+                    stdDeviation="3"
+                    floodColor={v.color}
+                    floodOpacity="0.5"
+                  />
+                </filter>
+              </defs>
+              <g filter={`url(#pin-shadow-${v.id})`}>
+                <path
+                  d="M22 2C13.2 2 6 9.2 6 18c0 12 16 32 16 32S38 30 38 18C38 9.2 30.8 2 22 2z"
+                  fill={v.color}
+                />
+                <circle
+                  cx="22"
+                  cy="18"
+                  r="9"
+                  fill="white"
+                  fillOpacity="0.95"
+                />
+                <circle cx="22" cy="18" r="5" fill={v.color} />
+              </g>
+              {isSel && (
+                <circle
+                  cx="22"
+                  cy="18"
+                  r="14"
+                  fill="none"
+                  stroke={v.color}
+                  strokeWidth="1.5"
+                  opacity="0.5"
+                />
+              )}
+              {v.alerts.length > 0 && (
+                <>
+                  <circle
+                    cx="34"
+                    cy="8"
+                    r="7"
+                    fill="#ef4444"
+                    stroke="white"
+                    strokeWidth="2"
+                  />
+                  <text
+                    x="34"
+                    y="12"
+                    textAnchor="middle"
+                    fontSize="9"
+                    fontWeight="900"
+                    fill="white"
+                  >
+                    !
+                  </text>
+                </>
+              )}
+            </svg>
+            {isSel && (
+              <div
+                className={`absolute -top-8 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-lg text-[10px] font-black whitespace-nowrap shadow-lg
+                ${isDark ? "bg-slate-900 text-white border border-slate-700" : "bg-white text-slate-800 border border-slate-200"}`}
+              >
+                {v.plate}
+              </div>
+            )}
+          </button>
+        );
+      })}
+
+      {/* API notice */}
+      <div className="absolute bottom-16 left-1/2 -translate-x-1/2 w-[80%] lg:w-auto text-center">
+        <div
+          className={`inline-block px-4 py-2 rounded-xl text-xs font-semibold backdrop-blur border
+          ${isDark ? "bg-slate-900/80 text-slate-400 border-slate-700" : "bg-white/80 text-slate-500 border-slate-200 shadow-sm"}`}
+        >
+          Add your Google Maps API key to load live map
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const GoogleMapCanvas = ({
   vehicles,
   selectedId,
@@ -36,26 +233,16 @@ const GoogleMapCanvas = ({
   const [ready, setReady] = useState(false);
   const [loadErr, setLoadErr] = useState(false);
 
-  const buildMarkerSvg = (v: Vehicle, isSelected: boolean) => {
-    const hasAlert = v.alerts.length > 0;
-    const c = hasAlert ? "#ef4444" : v.color;
-    const s = isSelected ? 1.2 : 1;
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(44 * s)}" height="${Math.round(52 * s)}" viewBox="0 0 44 52">
-      <defs>
-        <filter id="ds"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="${c}" flood-opacity="0.5"/></filter>
-      </defs>
-      <g filter="url(#ds)">
-        <path d="M22 2C13.2 2 6 9.2 6 18c0 12 16 32 16 32S38 30 38 18C38 9.2 30.8 2 22 2z" fill="${c}"/>
-        <circle cx="22" cy="18" r="9" fill="white" fill-opacity="0.96"/>
-        <circle cx="22" cy="18" r="5" fill="${c}"/>
-      </g>
-      ${isSelected ? `<circle cx="22" cy="18" r="14" fill="none" stroke="${c}" stroke-width="1.5" opacity="0.5"/>` : ""}
-      ${hasAlert ? `<circle cx="34" cy="8" r="7" fill="#ef4444" stroke="white" stroke-width="2"/><text x="34" y="12" text-anchor="middle" font-size="9" font-weight="900" fill="white">!</text>` : ""}
-    </svg>`;
-  };
+
+  // The map is created once; it reads the latest props through this ref.
+  const latest = useRef({ vehicles, selectedId, onSelect, isDark });
+  useEffect(() => {
+    latest.current = { vehicles, selectedId, onSelect, isDark };
+  });
 
   const initMap = useCallback(() => {
     if (!mapRef.current || instanceRef.current || !window.google?.maps) return;
+    const { vehicles, selectedId, onSelect, isDark } = latest.current;
 
     instanceRef.current = new window.google.maps.Map(mapRef.current, {
       center: { lat: -1.2921, lng: 36.8219 },
@@ -89,7 +276,7 @@ const GoogleMapCanvas = ({
     });
 
     setReady(true);
-  }, []); 
+  }, []);
 
   // Load Google maps script once
   useEffect(() => {
@@ -146,182 +333,6 @@ const GoogleMapCanvas = ({
     });
   }, [selectedId, vehicles]); 
 
-  // Fallback map (no API key / load error) 
-  const FallbackMap = () => {
-    const DUMMY_POSITIONS = [
-      { left: "44%", top: "42%" },
-      { left: "74%", top: "76%" },
-      { left: "70%", top: "20%" },
-      { left: "26%", top: "60%" },
-      { left: "52%", top: "54%" },
-    ];
-    const ROADS = [
-      "M5,50 Q25,28 50,50 T95,50",
-      "M50,5 L50,95",
-      "M10,28 L90,72",
-      "M18,80 Q42,58 66,80 T95,80",
-      "M22,12 Q50,50 78,88",
-      "M0,50 L100,50",
-    ];
-    return (
-      <div
-        className={`absolute inset-0 ${isDark ? "bg-[#0d1117]" : "bg-[#f0f4f8]"} overflow-hidden`}
-      >
-        <svg
-          className="absolute inset-0 w-full h-full opacity-20"
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-        >
-          <defs>
-            <pattern
-              id="fb-grid"
-              width="10"
-              height="10"
-              patternUnits="userSpaceOnUse"
-            >
-              <path
-                d="M 10 0 L 0 0 0 10"
-                fill="none"
-                stroke={isDark ? "#3b82f6" : "#94a3b8"}
-                strokeWidth="0.25"
-              />
-            </pattern>
-          </defs>
-          <rect width="100" height="100" fill="url(#fb-grid)" />
-          {ROADS.map((r, i) => (
-            <g key={i}>
-              <path
-                d={r}
-                fill="none"
-                stroke={isDark ? "#1e3a5f" : "#cbd5e1"}
-                strokeWidth="3"
-              />
-              <path
-                d={r}
-                fill="none"
-                stroke={isDark ? "#3b82f6" : "#93c5fd"}
-                strokeWidth="0.7"
-                opacity="0.7"
-              />
-            </g>
-          ))}
-          {[
-            [-1.2674, 36.8033, "44%", "42%"],
-            [-1.4548, 36.987, "74%", "76%"],
-            [-1.2122, 36.8863, "70%", "20%"],
-            [-1.3167, 36.7195, "26%", "60%"],
-            [-1.2921, 36.7851, "52%", "54%"],
-          ].map((_, i) => (
-            <circle
-              key={i}
-              cx={parseFloat(DUMMY_POSITIONS[i].left)}
-              cy={parseFloat(DUMMY_POSITIONS[i].top)}
-              r="0.6"
-              fill={isDark ? "#475569" : "#94a3b8"}
-              opacity="0.6"
-            />
-          ))}
-        </svg>
-
-        {/* Vehicle pins */}
-        {vehicles.map((v, i) => {
-          const pos = DUMMY_POSITIONS[i] || { left: "50%", top: "50%" };
-          const isSel = v.id === selectedId;
-          return (
-            <button
-              key={v.id}
-              onClick={() => onSelect(v.id)}
-              className={`absolute transform -translate-x-1/2 -translate-y-full transition-all duration-300 ${isSel ? "scale-125 z-10" : "z-0 hover:scale-110"}`}
-              style={pos}
-            >
-              <svg
-                width={isSel ? 48 : 38}
-                height={isSel ? 58 : 46}
-                viewBox="0 0 44 52"
-              >
-                <defs>
-                  <filter id={`pin-shadow-${v.id}`}>
-                    <feDropShadow
-                      dx="0"
-                      dy="2"
-                      stdDeviation="3"
-                      floodColor={v.color}
-                      floodOpacity="0.5"
-                    />
-                  </filter>
-                </defs>
-                <g filter={`url(#pin-shadow-${v.id})`}>
-                  <path
-                    d="M22 2C13.2 2 6 9.2 6 18c0 12 16 32 16 32S38 30 38 18C38 9.2 30.8 2 22 2z"
-                    fill={v.color}
-                  />
-                  <circle
-                    cx="22"
-                    cy="18"
-                    r="9"
-                    fill="white"
-                    fillOpacity="0.95"
-                  />
-                  <circle cx="22" cy="18" r="5" fill={v.color} />
-                </g>
-                {isSel && (
-                  <circle
-                    cx="22"
-                    cy="18"
-                    r="14"
-                    fill="none"
-                    stroke={v.color}
-                    strokeWidth="1.5"
-                    opacity="0.5"
-                  />
-                )}
-                {v.alerts.length > 0 && (
-                  <>
-                    <circle
-                      cx="34"
-                      cy="8"
-                      r="7"
-                      fill="#ef4444"
-                      stroke="white"
-                      strokeWidth="2"
-                    />
-                    <text
-                      x="34"
-                      y="12"
-                      textAnchor="middle"
-                      fontSize="9"
-                      fontWeight="900"
-                      fill="white"
-                    >
-                      !
-                    </text>
-                  </>
-                )}
-              </svg>
-              {isSel && (
-                <div
-                  className={`absolute -top-8 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-lg text-[10px] font-black whitespace-nowrap shadow-lg
-                  ${isDark ? "bg-slate-900 text-white border border-slate-700" : "bg-white text-slate-800 border border-slate-200"}`}
-                >
-                  {v.plate}
-                </div>
-              )}
-            </button>
-          );
-        })}
-
-        {/* API notice */}
-        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 w-[80%] lg:w-auto text-center">
-          <div
-            className={`inline-block px-4 py-2 rounded-xl text-xs font-semibold backdrop-blur border
-            ${isDark ? "bg-slate-900/80 text-slate-400 border-slate-700" : "bg-white/80 text-slate-500 border-slate-200 shadow-sm"}`}
-          >
-            Add your Google Maps API key to load live map
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-sm dark:shadow-none">
@@ -329,7 +340,7 @@ const GoogleMapCanvas = ({
       <div ref={mapRef} className="absolute inset-0" />
 
       {/* Show fallback while loading / on error */}
-      {(loadErr || !ready) && <FallbackMap />}
+      {(loadErr || !ready) && <FallbackMap vehicles={vehicles} selectedId={selectedId} onSelect={onSelect} isDark={isDark} />}
 
       {/* Alert banner */}
       <AnimatePresence>

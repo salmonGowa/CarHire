@@ -1,18 +1,21 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import VehicleImage from "../VehicleImage";
 import { type Variants, motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import {
-  Building2, CalendarClock, Car, CheckCircle2, Clock, FileSignature, Mail, MapPin, Navigation, Phone, Receipt, Satellite, ShieldAlert, XCircle,
+  Building2, CalendarClock, CalendarPlus, Car, CheckCircle2, Clock, FileSignature, Hourglass, Mail, MapPin, Navigation, Phone, Receipt, Satellite, ShieldAlert, ShieldCheck, XCircle,
 } from "lucide-react";
 import LoadState from "../LoadState";
+import Button from "../Button";
+import Modal from "../Modal";
 import { api } from "@/lib/api";
-import { errorMessage } from "@/lib/errors";
+import { errorMessage, fieldErrors } from "@/lib/errors";
 import { useApi } from "@/lib/useApi";
 import { useNow, formatDuration } from "@/lib/useNow";
 import { mapsLink, tripPhase } from "@/lib/trip";
-import { dateTime, ksh } from "@/lib/format";
+import { CHARGE_LABEL, dateTime, ksh, quote } from "@/lib/format";
 import type { CurrentTrip } from "@/types/account";
+import type { Booking } from "@/types/models";
 
 const itemVariants: Variants = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
 const TONE: Record<string, string> = {
@@ -23,10 +26,62 @@ const TONE: Record<string, string> = {
 };
 const card = "p-6 rounded-3xl bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 shadow-sm";
 
+const toLocalInput = (iso: string, plusDays = 0) => {
+  const d = new Date(iso);
+  d.setDate(d.getDate() + plusDays);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+/** Ask the dealer for more time; they approve or decline, and the price is added to the invoice. */
+function ExtendForm({ booking, onDone }: { booking: Booking; onDone: () => void }) {
+  const [returnAt, setReturnAt] = useState(toLocalInput(booking.return_at, 1));
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const later = new Date(returnAt).getTime() > new Date(booking.return_at).getTime();
+  const q = later ? quote(booking.daily_rate, booking.pickup_at, new Date(returnAt).toISOString()) : null;
+  const extraDays = q ? Math.max(0, q.days - booking.days) : 0;
+  const extra = extraDays * booking.daily_rate;
+  const extraTotal = extra + Math.round(extra * 0.16);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      await api(`/api/bookings/${booking.id}/extensions`, { method: "POST", body: { return_at: new Date(returnAt).toISOString() } });
+      onDone();
+    } catch (err) {
+      setError(Object.values(fieldErrors(err))[0]);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="p-6 space-y-4">
+      <p className="text-sm text-slate-600 dark:text-slate-400">Currently due back <span className="font-bold text-slate-900 dark:text-white">{dateTime(booking.return_at)}</span>.</p>
+      <label className="block">
+        <span className="block text-xs font-medium text-slate-600 dark:text-slate-400 tracking-wide mb-1.5">New return time</span>
+        <input type="datetime-local" value={returnAt} min={toLocalInput(booking.return_at)} onChange={(e) => setReturnAt(e.target.value)} required aria-label="New return time"
+          className="w-full h-11 px-3.5 bg-white dark:bg-slate-800/60 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" />
+      </label>
+      <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex justify-between text-sm">
+        <span className="text-slate-500">{later ? `${extraDays} extra day${extraDays === 1 ? "" : "s"} × ${ksh(booking.daily_rate)} + VAT` : "Pick a later time"}</span>
+        <span className="font-black text-slate-900 dark:text-white">{later ? ksh(extraTotal) : "—"}</span>
+      </div>
+      {error && <p className="text-sm text-rose-600 dark:text-rose-400">{error}</p>}
+      <Button type="submit" fullWidth loading={saving} disabled={!later}>Send request</Button>
+      <p className="text-[11px] text-center text-slate-400">The dealer confirms if the car is free. You'll get a text and an email with their answer.</p>
+    </form>
+  );
+}
+
 export default function CustomerActiveTrip() {
   const { data, loading, error, reload } = useApi<CurrentTrip>("/api/trips/current");
   const now = useNow();
   const [message, setMessage] = useState("");
+  const [extending, setExtending] = useState(false);
 
   if (!data) return <LoadState loading={loading} error={error} onRetry={reload} />;
   if (!data.data) {
@@ -45,6 +100,8 @@ export default function CustomerActiveTrip() {
   const canCancel = b.allowed_transitions.includes("cancelled");
   const cutoffPassed = new Date(b.cancel_until).getTime() < now;
   const balance = b.invoice?.balance ?? (b.invoice ? 0 : b.total);
+  const ext = b.extension;
+  const charges = b.charges ?? [];
 
   const cancel = async () => {
     if (!window.confirm(`Cancel ${b.reference}? ${b.invoice?.amount_paid ? "The dealer will arrange your refund." : ""}`)) return;
@@ -85,7 +142,17 @@ export default function CustomerActiveTrip() {
             <ShieldAlert className="w-7 h-7 mb-2 text-slate-400 group-hover:text-rose-500" />
             <span className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 group-hover:text-rose-500">Report a problem</span>
           </Link>
-          {dealer?.phone ? (
+          {ext?.status === "pending" ? (
+            <div className="flex flex-col items-center justify-center p-5 rounded-3xl bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/30 text-center">
+              <Hourglass className="w-7 h-7 mb-2 text-sky-500" />
+              <span className="text-[11px] font-bold text-sky-700 dark:text-sky-300">Extension to {dateTime(ext.to_return_at)} waiting for the dealer</span>
+            </div>
+          ) : b.can_request_extension ? (
+            <button onClick={() => setExtending(true)} className="flex flex-col items-center justify-center p-5 rounded-3xl bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 hover:border-blue-500 shadow-sm group">
+              <CalendarPlus className="w-7 h-7 mb-2 text-slate-400 group-hover:text-blue-500" />
+              <span className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 group-hover:text-blue-500 text-center">Extend rental</span>
+            </button>
+          ) : dealer?.phone ? (
             <a href={`tel:${dealer.phone.replace(/\s/g, "")}`} className="flex flex-col items-center justify-center p-5 rounded-3xl bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 hover:border-blue-500 shadow-sm group">
               <CalendarClock className="w-7 h-7 mb-2 text-slate-400 group-hover:text-blue-500" />
               <span className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 group-hover:text-blue-500 text-center">Call to extend</span>
@@ -97,6 +164,16 @@ export default function CustomerActiveTrip() {
             </div>
           )}
         </motion.div>
+
+        {ext && ext.status !== "pending" && (
+          <motion.div variants={itemVariants} className={`p-4 rounded-2xl border text-sm ${ext.status === "approved"
+            ? "bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-300"
+            : "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-500/10 dark:border-amber-500/20 dark:text-amber-300"}`}>
+            {ext.status === "approved"
+              ? <>Extension approved: keep the car until {dateTime(ext.to_return_at)}. {ksh(ext.amount)} was added to your invoice.</>
+              : <>The dealer couldn't extend to {dateTime(ext.to_return_at)}.{ext.note && <> They said: “{ext.note}”</>}</>}
+          </motion.div>
+        )}
 
         <motion.div variants={itemVariants} className={`${card} space-y-4`}>
           <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 dark:border-slate-800/60 pb-3">Pickup & return</h4>
@@ -152,6 +229,17 @@ export default function CustomerActiveTrip() {
                 ? <p className="text-sm font-bold text-amber-600">{ksh(balance)} still to pay (invoice {b.invoice.number})</p>
                 : <p className="text-sm font-bold text-emerald-600 flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4" /> Paid in full</p>
             ) : <p className="text-sm text-slate-500">You'll get an invoice once the dealer confirms.</p>}
+            {charges.map((c) => (
+              <p key={c.id} className="text-xs text-slate-500 flex justify-between gap-3"><span>{CHARGE_LABEL[c.type]}</span><span className="font-bold">{ksh(c.total)}</span></p>
+            ))}
+            {b.deposit.amount > 0 && (
+              <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                {b.deposit.held > 0
+                  ? `${ksh(b.deposit.held)} deposit held by the dealer. It comes back after return, less any charges.`
+                  : b.deposit.received > 0 ? "Deposit settled." : `${ksh(b.deposit.amount)} refundable deposit due at pickup.`}
+              </p>
+            )}
             <Link to="/customer-billing" className="text-xs font-bold text-blue-600 hover:underline">Billing & receipts</Link>
           </motion.div>
 
@@ -170,6 +258,9 @@ export default function CustomerActiveTrip() {
           </motion.div>
         </div>
       </div>
+      <Modal open={extending} onClose={() => setExtending(false)} title="Extend your rental" subtitle={`${b.reference} · ${vehicle?.model ?? ""}`} width="max-w-md">
+        {extending && <ExtendForm booking={b} onDone={() => { setExtending(false); reload(); }} />}
+      </Modal>
     </motion.div>
   );
 }

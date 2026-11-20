@@ -7,7 +7,7 @@ import Input from "../Input";
 import { api, ApiError } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import type { Profile } from "@/types/account";
-import { ksh, quote } from "@/lib/format";
+import { ksh, mileageRule, quote } from "@/lib/format";
 import type { Booking, Vehicle } from "@/types/models";
 
 const toLocalInput = (d: Date) => {
@@ -146,6 +146,21 @@ export default function BookVehicleModal({ vehicle, onClose }: { vehicle: Vehicl
                     <p className="text-slate-500">Choose a return time after pickup to see the price.</p>
                   )}
                 </div>
+
+                {vehicle.dealer?.policy && (
+                  <details className="group rounded-2xl border border-slate-100 dark:border-slate-800 px-4 py-3 text-xs text-slate-600 dark:text-slate-400">
+                    <summary className="cursor-pointer font-bold text-slate-700 dark:text-slate-300 list-none flex justify-between">
+                      <span>{vehicle.dealer.policy.deposit_amount > 0 ? `${ksh(vehicle.dealer.policy.deposit_amount)} refundable deposit at pickup` : "No deposit"} · rental terms</span>
+                      <span className="text-slate-400 group-open:rotate-180 transition-transform">▾</span>
+                    </summary>
+                    <ul className="mt-2 space-y-1 list-disc pl-4">
+                      <li>Late returns: {vehicle.dealer.policy.late_grace_minutes} min grace, then {ksh(Math.round((vehicle.daily_rate * vehicle.dealer.policy.late_fee_percent) / 100))} per started hour (at most one day's rate per day).</li>
+                      <li>Fuel: return it as full as you got it, or {ksh(vehicle.dealer.policy.fuel_charge_per_percent)} per % short.</li>
+                      <li>{mileageRule(vehicle.dealer.policy.included_km_per_day, vehicle.dealer.policy.extra_km_rate)}.</li>
+                      <li>Charges are plus VAT and are taken from the deposit first.</li>
+                    </ul>
+                  </details>
+                )}
 
                 {(errors.vehicle_id || errors.form) && <p className="text-sm text-rose-600 dark:text-rose-400">{errors.vehicle_id ?? errors.form}</p>}
 

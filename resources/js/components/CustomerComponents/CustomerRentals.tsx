@@ -167,6 +167,13 @@ export default function CustomerRentals() {
                   <div className="flex items-center justify-between sm:justify-end gap-4">
                      <div className="text-left sm:text-right">
                         <p className="text-base font-black text-slate-900 dark:text-white leading-tight">{ksh(r.total)}</p>
+                        {!!r.charges?.length && (
+                          <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400" title={r.charges.map((c) => `${c.description}: ${ksh(c.total)}`).join("\n")}>
+                            +{ksh(r.charges.reduce((n, c) => n + c.total, 0))} return charges
+                          </p>
+                        )}
+                        {r.deposit.refunded > 0 && <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">{ksh(r.deposit.refunded)} deposit returned</p>}
+                        {r.deposit.held > 0 && <p className="text-[10px] font-bold text-slate-500">{ksh(r.deposit.held)} deposit held</p>}
                         <span className={`inline-flex items-center gap-1 mt-1 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${
                           done ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400' :
                           r.status === 'cancelled' || r.is_overdue ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400' :

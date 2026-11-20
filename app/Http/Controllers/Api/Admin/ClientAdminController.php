@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\Payment;
 use App\Models\User;
+use App\Services\Notifier;
 use App\Support\CustomerTier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -112,6 +113,9 @@ class ClientAdminController extends Controller
         $client->update(['kyc_status' => $data['decision'], 'kyc_note' => $data['note'] ?? null, 'kyc_reviewed_at' => now(), 'kyc_reviewed_by' => $request->user()->id]);
         AuditLog::record("client.kyc_{$data['decision']}", 'KYC '.$data['decision'].($data['note'] ?? null ? " ({$data['note']})" : '')." for {$client->email}", $client,
             $data['decision'] === 'rejected' ? 'warning' : 'info');
+        app(Notifier::class)->user($client, ...($data['decision'] === 'verified'
+            ? ['Identity verified', 'Your ID has been checked. You can book any vehicle on DriveFleet.', '/customer-profile', 'success']
+            : ['Identity check failed', "We couldn't verify your ID: {$data['note']}. Upload a clearer copy under Profile.", '/customer-profile', 'warning']));
 
         return $this->show($client);
     }

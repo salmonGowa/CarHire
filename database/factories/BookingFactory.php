@@ -14,7 +14,8 @@ class BookingFactory extends Factory
 {
     public function definition(): array
     {
-        $pickup = now()->addDays(fake()->numberBetween(1, 10))->setTime(10, 0);
+        // At least two days out, so a default booking is always outside the 24h cancellation cut-off.
+        $pickup = now()->addDays(fake()->numberBetween(2, 10))->setTime(10, 0);
         $return = (clone $pickup)->addDays(fake()->numberBetween(1, 5));
 
         return [

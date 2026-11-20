@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Services\PlatformAlerts;
+use App\Services\Sms\LogSmsSender;
+use App\Services\Sms\SmsSender;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -45,8 +47,10 @@ class IntegrationsController extends Controller
                     : 'Not running. Start `php artisan schedule:work` (or a cron entry for `schedule:run`) so monthly billing runs on its own.'),
             $this->row('mail', 'Email delivery', 'Communications', in_array($mailer, ['log', 'array'], true) ? 'attention' : 'configured',
                 in_array($mailer, ['log', 'array'], true)
-                    ? "The mailer is set to \"{$mailer}\", so nothing is delivered. The app doesn't send emails yet either."
-                    : "Mailer \"{$mailer}\" is configured. The app doesn't send any emails yet."),
+                    ? "The mailer is \"{$mailer}\": confirmations, receipts, reminders and password resets are written to the log, not delivered. Set MAIL_MAILER to a real provider."
+                    : "Sending with \"{$mailer}\" from ".config('mail.from.address').'.'),
+            $this->sms(),
+            $this->queue(),
             $this->row('maps', 'Google Maps', 'Location', config('drivefleet.google_maps_key_set') ? 'configured' : 'not_connected',
                 config('drivefleet.google_maps_key_set') ? 'A browser key is set and used by the Live Tracking map.' : 'No key set (VITE_GOOGLE_MAPS_API_KEY). The Live Tracking map will be blank.'),
         ];
@@ -58,10 +62,41 @@ class IntegrationsController extends Controller
         return [
             $this->row('mpesa', 'M-PESA (Daraja)', 'Payments', 'not_connected', 'STK push and C2B confirmations are not built. Staff record M-PESA payments by hand with the transaction code.'),
             $this->row('card', 'Card payments', 'Payments', 'not_connected', 'No card gateway is connected. Card payments are recorded by hand.'),
-            $this->row('sms', 'SMS (e.g. Africa\'s Talking)', 'Communications', 'not_connected', 'No SMS provider. Reminders and one-time codes are not sent.'),
             $this->row('etims', 'KRA eTIMS', 'Tax', 'not_connected', 'Invoices are numbered and include VAT but are not submitted to KRA.'),
             $this->row('gps', 'GPS telematics', 'Location', 'not_connected', 'No tracking provider. Live Tracking shows demo positions only.'),
         ];
+    }
+
+    /** @return array<string, mixed> */
+    private function sms(): array
+    {
+        $sender = app(SmsSender::class);
+        if ($sender instanceof LogSmsSender) {
+            return $this->row('sms', 'SMS', 'Communications', 'attention',
+                'Texts (pickup and return reminders, overdue alerts, booking confirmations) are written to the log. Set SMS_DRIVER=africastalking with your Africa\'s Talking keys to send them.');
+        }
+        $missing = blank(config('services.africastalking.username')) || blank(config('services.africastalking.api_key'));
+
+        return $this->row('sms', 'SMS', 'Communications', $missing ? 'error' : 'configured',
+            $missing ? 'SMS_DRIVER is africastalking but the username or API key is missing.' : "Sending with {$sender->name()}.");
+    }
+
+    /** @return array<string, mixed> */
+    private function queue(): array
+    {
+        $connection = (string) config('queue.default');
+        if ($connection === 'sync') {
+            return $this->row('queue', 'Background jobs', 'Infrastructure', 'configured',
+                'QUEUE_CONNECTION is sync: emails and texts are sent while the request waits. Fine for development; use a queue in production.');
+        }
+        $pending = $connection === 'database' ? DB::table('jobs')->count() : null;
+        $failed = DB::table('failed_jobs')->count();
+        $stuck = $connection === 'database' && DB::table('jobs')->where('created_at', '<', now()->subMinutes(10)->getTimestamp())->exists();
+
+        return $this->row('queue', 'Background jobs', 'Infrastructure', $failed > 0 || $stuck ? 'attention' : 'connected',
+            ($stuck ? 'Jobs have waited over 10 minutes; is `php artisan queue:work` running? ' : '')
+            .($pending !== null ? "{$pending} waiting" : "Queue \"{$connection}\"").", {$failed} failed"
+            .($failed ? ' (see `php artisan queue:failed`).' : '.'));
     }
 
     /** @return array{ok: bool, error: string|null, ms: int} */

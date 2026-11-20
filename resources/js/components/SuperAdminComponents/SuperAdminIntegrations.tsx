@@ -1,6 +1,6 @@
 import { type Variants, motion } from "framer-motion";
 import {
-  AlertCircle, CheckCircle2, Clock, CreditCard, Database, HardDrive, Landmark, Mail, MapPin, MessageSquare, Navigation, PlugZap, RefreshCw, Smartphone, XCircle,
+  AlertCircle, CheckCircle2, Clock, Layers, CreditCard, Database, HardDrive, Landmark, Mail, MapPin, MessageSquare, Navigation, PlugZap, RefreshCw, Smartphone, XCircle,
 } from "lucide-react";
 import LoadState from "../LoadState";
 import { useApi } from "@/lib/useApi";
@@ -15,8 +15,8 @@ interface Integration {
 }
 
 const ICONS: Record<string, typeof Database> = {
-  database: Database, storage: HardDrive, scheduler: Clock, mail: Mail, maps: MapPin,
-  mpesa: Smartphone, card: CreditCard, sms: MessageSquare, etims: Landmark, gps: Navigation,
+  database: Database, storage: HardDrive, scheduler: Clock, queue: Layers, mail: Mail, sms: MessageSquare, maps: MapPin,
+  mpesa: Smartphone, card: CreditCard, etims: Landmark, gps: Navigation,
 };
 const STATUS: Record<Integration["status"], { label: string; style: string; icon: typeof CheckCircle2 }> = {
   connected: { label: "Healthy", style: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400", icon: CheckCircle2 },
@@ -31,9 +31,10 @@ const itemVariants: Variants = { hidden: { opacity: 0, y: 20 }, show: { opacity:
 export default function SuperAdminIntegrations() {
   const { data, loading, error, reload } = useApi<{ data: Integration[] }>("/api/admin/integrations");
   const rows = data?.data ?? [];
+  const live = ["database", "storage", "scheduler", "queue", "mail", "sms", "maps"];
   const groups = [
-    { title: "Running the platform", sub: "Checked live each time this page loads", items: rows.filter((r) => ["database", "storage", "scheduler", "mail", "maps"].includes(r.id)) },
-    { title: "Third-party services", sub: "Not built yet. Staff record these by hand for now", items: rows.filter((r) => !["database", "storage", "scheduler", "mail", "maps"].includes(r.id)) },
+    { title: "Running the platform", sub: "Checked live each time this page loads", items: rows.filter((r) => live.includes(r.id)) },
+    { title: "Third-party services", sub: "Not built yet. Staff record these by hand for now", items: rows.filter((r) => !live.includes(r.id)) },
   ];
 
   return (

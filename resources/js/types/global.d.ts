@@ -12,4 +12,5 @@ interface ImportMeta {
 interface Window {
     google?: typeof google;
     __gmapCb?: () => void;
+    gm_authFailure?: () => void;
 }

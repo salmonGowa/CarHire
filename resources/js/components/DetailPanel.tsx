@@ -4,7 +4,7 @@ import { HeadingArrow, Gauge, Spark, Icon } from "./ConstantStyling";
 import { STATUS_CFG } from "@/lib/trackingStyles";
 import { TRIP_HISTORY, type Vehicle } from "@/data";
 
-const DetailPanel = ({ v, onCommand }: { v: Vehicle; onCommand: (cmd: string, vehicleId: number) => void }) => {
+const DetailPanel = ({ v }: { v: Vehicle }) => {
   const [tab, setTab] = useState("telemetry");
   const TABS = ["telemetry", "driver", "trip", "history"];
 
@@ -390,7 +390,8 @@ const DetailPanel = ({ v, onCommand }: { v: Vehicle; onCommand: (cmd: string, ve
 
       {/* Remote commands */}
       <div className="p-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-950 flex-shrink-0">
-        <p className={`${labelCls} mb-2.5`}>Remote Commands</p>
+        <p className={`${labelCls} mb-1`}>Remote Commands</p>
+        <p className="text-[10px] text-slate-500 mb-2.5">Needs a telematics provider in the vehicle.</p>
         <div className="grid grid-cols-3 gap-2">
           {[
             {
@@ -414,8 +415,9 @@ const DetailPanel = ({ v, onCommand }: { v: Vehicle; onCommand: (cmd: string, ve
           ].map((b) => (
             <button
               key={b.label}
-              onClick={() => onCommand(b.cmd, v.id)}
-              className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border text-[10px] font-black uppercase tracking-wide transition-all ${b.cls}`}
+              disabled
+              title="Not available: no telematics provider is connected"
+              className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border text-[10px] font-black uppercase tracking-wide transition-all opacity-40 cursor-not-allowed ${b.cls}`}
             >
               <Icon d={b.icon} size={16} />
               {b.label}

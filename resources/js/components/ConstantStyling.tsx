@@ -120,7 +120,7 @@ export const Gauge = ({ value, max, label, color }: { value: number; max: number
           fontWeight="900"
           className="fill-slate-800 dark:fill-white"
         >
-          {value}
+          {Math.round(value)}
         </text>
       </svg>
       <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">

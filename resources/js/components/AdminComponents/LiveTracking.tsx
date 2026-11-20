@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {Search,Layers,Maximize,MapPin,Zap,Battery,AlertTriangle,Cpu,Wifi,Map,Phone,MessageSquare,User,ChevronRight,Lock,Volume2,Lightbulb,CheckCircle2, ArrowLeft,
-} from "lucide-react";
+import { Search, Layers, Maximize, Map } from "lucide-react";
 import { Icon } from "../ConstantStyling";
 import { MAP_DARK_STYLE, MAP_LIGHT_STYLE, stagger, STATUS_CFG } from "@/lib/trackingStyles";
 import DetailPanel from "../DetailPanel";
@@ -213,7 +212,7 @@ const FallbackMap = ({ vehicles, selectedId, onSelect, isDark }: Pick<GoogleMapC
           className={`inline-block px-4 py-2 rounded-xl text-xs font-semibold backdrop-blur border
           ${isDark ? "bg-slate-900/80 text-slate-400 border-slate-700" : "bg-white/80 text-slate-500 border-slate-200 shadow-sm"}`}
         >
-          Add your Google Maps API key to load live map
+          Schematic view: Google Maps isn't available (no key, or the key was rejected)
         </div>
       </div>
     </div>
@@ -276,6 +275,10 @@ const GoogleMapCanvas = ({
     });
 
     setReady(true);
+    // A rejected key still "loads" but covers the map with Google's error dialog; use our own map instead.
+    window.setTimeout(() => {
+      if (mapRef.current?.querySelector(".gm-err-container, .dismissButton")) setLoadErr(true);
+    }, 2500);
   }, []);
 
   // Load Google maps script once
@@ -297,6 +300,8 @@ const GoogleMapCanvas = ({
       initMap();
     };
     script.onerror = () => setLoadErr(true);
+    // Google calls this when the key is rejected (e.g. billing not enabled on its project).
+    window.gm_authFailure = () => setLoadErr(true);
     document.head.appendChild(script);
     const timeout = setTimeout(() => {
       if (!window.google?.maps) setLoadErr(true);
@@ -337,7 +342,7 @@ const GoogleMapCanvas = ({
   return (
     <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-sm dark:shadow-none">
       {/* Google Maps container */}
-      <div ref={mapRef} className="absolute inset-0" />
+      <div ref={mapRef} className={`absolute inset-0 ${loadErr ? "invisible" : ""}`} aria-hidden={loadErr} />
 
       {/* Show fallback while loading / on error */}
       {(loadErr || !ready) && <FallbackMap vehicles={vehicles} selectedId={selectedId} onSelect={onSelect} isDark={isDark} />}
@@ -373,7 +378,7 @@ const GoogleMapCanvas = ({
           <span
             className={`text-[10px] font-bold tracking-wider ${isDark ? "text-slate-300" : "text-slate-600"}`}
           >
-            LIVE · 99.9% UPTIME
+            SIMULATED POSITIONS
           </span>
         </div>
       </div>
@@ -425,7 +430,6 @@ export default function LiveTracking() {
   const [selectedId, setSelectedId] = useState(1);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
-  const [toast, setToast] = useState<{ cmd: string; plate?: string } | null>(null);
   const [isDark, setIsDark] = useState(false);
 
 
@@ -483,12 +487,6 @@ export default function LiveTracking() {
   const movingCount = vehicles.filter((v) => v.status === "Moving").length;
   const alertCount = allAlerts.length;
 
-  const handleCommand = (cmd: string, vehicleId: number) => {
-    const v = vehicles.find((x) => x.id === vehicleId);
-    setToast({ cmd, plate: v?.plate });
-    setTimeout(() => setToast(null), 3000);
-  };
-
   const rootBg = isDark ? "bg-[#030812]" : "bg-slate-100/60";
 
   return (
@@ -507,13 +505,17 @@ export default function LiveTracking() {
               {alertCount !== 1 ? "s" : ""}
             </p>
           </div>
-          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/10 border border-emerald-300 dark:border-emerald-500/20">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[9px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest">
-              Live
+          <div title="No GPS tracking provider is connected, so positions and telemetry are simulated."
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+            <span className="text-[9px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest">
+              Demo data
             </span>
           </div>
         </div>
+        <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+          Positions, speed and fuel are simulated until a GPS tracking provider is connected.
+        </p>
 
         <div className="relative">
           <Icon
@@ -587,48 +589,13 @@ export default function LiveTracking() {
           isDark={isDark}
           alerts={allAlerts}
         />
-        <AnimatePresence>
-          {toast && (
-            <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -10, opacity: 0 }}
-              className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[90%] sm:w-auto px-5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-white shadow-xl z-30 flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-2 text-center sm:text-left"
-            >
-              <div className="flex items-center justify-center gap-2">
-                <Icon
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                  size={14}
-                  className="text-emerald-500 flex-shrink-0"
-                />
-                <span>
-                  Command{" "}
-                  <span className="uppercase text-emerald-600 dark:text-emerald-400 ml-0.5">
-                    {toast.cmd}
-                  </span>
-                </span>
-              </div>
-              <span className="hidden sm:inline text-slate-400 dark:text-slate-500 mx-1">
-                <ArrowLeft size={12} />
-              </span>
-              <span className="mt-1 sm:mt-0 text-slate-500 dark:text-slate-400">
-                sent to {toast.plate}
-              </span>
-              <span className="mt-1 sm:mt-0">{toast.plate}</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
       {/*Col 3: Detail panel */}
       <div className="order-2 lg:order-3 w-full lg:w-[280px] flex-shrink-0">
         <AnimatePresence mode="wait">
           {selected && (
-            <DetailPanel
-              key={selected.id}
-              v={selected}
-              onCommand={handleCommand}
-            />
+            <DetailPanel key={selected.id} v={selected} />
           )}
         </AnimatePresence>
       </div>

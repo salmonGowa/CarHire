@@ -124,6 +124,7 @@ decides their dashboard; dealer staff belong to a dealership via `dealer_id`.
 | `/api/profile` (+ `/preferences`, `/password`, `/sign-out-others`, `/documents`), `DELETE /api/profile` | the signed-in user | own details, ID uploads for KYC (private disk), closing a customer account |
 | `GET /api/search?q=` | everyone signed in | top-bar search, limited to what the user's role can see |
 | `/api/dealer-staff` (+ `/{id}`, `/{id}/reset-password`) | dealer staff (changes: dealer managers) | the dealership's own logins; plan staff limit applies |
+| `/api/auth/forgot-password`, `/api/auth/reset-password`, `/api/auth/email/verification-notification` | guests / signed-in users | password reset by email; resend the confirm-your-email link |
 | `GET /api/notifications` (+ `/{id}/read`, `/read-all`) | everyone signed in | in-app notifications (database channel) for bookings, payments, support replies, KYC and compliance |
 | `GET /api/rewards`, `GET /api/trips/current` | customers | tier and points from paid trips and reviews; the active or next booking |
 | `GET /api/support-attachments/{id}` | ticket participants | photos/PDFs attached to support messages |
@@ -155,8 +156,31 @@ locked out of the API and sign-in), sign-in attempts per minute, idle sign-out
 time and support contacts. VAT stays in `config/drivefleet.php`. The app time
 zone defaults to `Africa/Nairobi` (`APP_TIMEZONE`).
 
-Notifications are in-app only: email and SMS aren't connected, though customers'
-channel preferences are saved for when they are. Loyalty points are 1 per
+### Email, SMS and reminders
+
+Every notification appears in the app (the bell). It is also **emailed** and,
+when time-sensitive, **texted**, according to its category and the customer's
+preferences: booking emails, receipt emails and SMS reminders can each be turned
+off; account, support and compliance emails always go. Texts go out for booking
+confirmations and cancellations, pickup reminders (24 hours ahead), return
+reminders (3 hours ahead) and overdue returns (30 minutes past). Walk-in
+customers without an account get the reminders by SMS to the number on the
+booking. `php artisan drivefleet:send-reminders` runs every 15 minutes.
+
+Email and SMS are queued (`QUEUE_CONNECTION=database`); `php artisan dev` runs a
+worker, and production needs `php artisan queue:work` alongside the scheduler.
+
+| Setting | Development default | To send for real |
+| --- | --- | --- |
+| `MAIL_MAILER` | `log` (written to `storage/logs`) | `smtp`, `postmark`, `resend`, `ses`… with their keys |
+| `SMS_DRIVER` | `log` | `africastalking` plus `AFRICASTALKING_USERNAME`, `AFRICASTALKING_API_KEY` and optional `AFRICASTALKING_SENDER_ID` (use username `sandbox` with a sandbox key to test) |
+
+Password reset works by email (`/forgot-password`, links expire after 60
+minutes, other devices are signed out). New sign-ups get a link to confirm their
+email and see a reminder banner until they do; nothing is blocked meanwhile. The
+admin Integrations page shows what is configured.
+
+Loyalty points are 1 per
 KSh 100 paid on a completed trip plus 50 per review; redemption isn't built.
 Live Trip shows the booking, dealer and payment details; there is no GPS
 provider, so it says live location is unavailable.

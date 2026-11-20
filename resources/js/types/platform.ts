@@ -57,6 +57,7 @@ export interface SupportMessage {
   from_support: boolean;
   mine: boolean;
   at: string;
+  attachments: { id: number; name: string; size: number; is_image: boolean }[];
 }
 
 export interface SupportTicketDetail extends SupportTicket {

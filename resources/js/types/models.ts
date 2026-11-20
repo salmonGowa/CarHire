@@ -61,6 +61,7 @@ export interface Booking {
   discount: number;
   agreement_type: "self_drive" | "chauffeur";
   agreement_signed: boolean;
+  cancel_until: string;
 }
 
 export interface Payment {
@@ -362,6 +363,9 @@ export interface AdminClient {
 }
 
 export interface AdminClientDetail extends AdminClient {
+  licence_number: string | null;
+  licence_expires_on: string | null;
+  documents: { id: number; type: string; label: string; original_name: string; uploaded_at: string }[];
   bookings: { id: number; reference: string; status: BookingStatus; vehicle: string | null; dealer: string | null; pickup_at: string; total: number }[];
   payments: { id: number; reference: string; amount: number; method: string; status: string; paid_at: string; booking_reference: string | null }[];
   activity: { action: string; by: string; at: string }[];

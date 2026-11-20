@@ -29,6 +29,6 @@ class DatabaseSeeder extends Seeder
         }
 
         AuditLog::query()->delete();
-        $this->call([FleetSeeder::class, HrSeeder::class, AdminSeeder::class, PlatformSeeder::class]);
+        $this->call([FleetSeeder::class, HrSeeder::class, AdminSeeder::class, PlatformSeeder::class, CustomerSeeder::class]);
     }
 }

@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import ThemeToggle from "../components/ThemeToggle";
 import { useTheme } from "../components/ThemeContext";
 import ICONS from "../components/SvgIcons";
 import { type Variants, motion } from "framer-motion";
 import FooterLanding from "../components/FooterLanding";
 import NavLanding from "../components/NavLanding";
+import { useApi } from "@/lib/useApi";
+import { appConfig } from "@/lib/appConfig";
 
 const SERVICES = [
   {
@@ -151,7 +153,6 @@ const PLANS = [
   {
     name: "Starter",
     monthly: 2999,
-    annual: 2499,
     desc: "For solo dealers just getting started",
     accentCls: "text-blue-600 dark:text-blue-400",
     bgCls: "bg-blue-100 dark:bg-blue-500/10",
@@ -160,8 +161,6 @@ const PLANS = [
       "border border-blue-200 dark:border-blue-500/40 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/8 hover:bg-blue-100 dark:hover:bg-blue-500/15",
     featured: false,
     features: [
-      "Up to 10 vehicles",
-      "1 dealer account",
       "Basic booking management",
       "M-PESA payments",
       "Email support",
@@ -171,7 +170,6 @@ const PLANS = [
   {
     name: "Business",
     monthly: 8999,
-    annual: 7499,
     desc: "For growing dealerships with active fleets",
     accentCls: "text-violet-600 dark:text-violet-400",
     bgCls: "bg-violet-100 dark:bg-violet-500/10",
@@ -180,8 +178,6 @@ const PLANS = [
       "bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-xl shadow-violet-200 dark:shadow-violet-900/30",
     featured: true,
     features: [
-      "Up to 50 vehicles",
-      "3 dealer accounts",
       "Advanced analytics",
       "GPS fleet tracking",
       "HR & payroll module",
@@ -193,7 +189,6 @@ const PLANS = [
   {
     name: "Enterprise",
     monthly: null,
-    annual: null,
     desc: "For large-scale multi-location operations",
     accentCls: "text-emerald-600 dark:text-emerald-400",
     bgCls: "bg-emerald-100 dark:bg-emerald-500/10",
@@ -202,8 +197,6 @@ const PLANS = [
       "border border-emerald-200 dark:border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/8 hover:bg-emerald-100 dark:hover:bg-emerald-500/15",
     featured: false,
     features: [
-      "Unlimited vehicles",
-      "Unlimited dealer accounts",
       "Dedicated account manager",
       "Custom integrations",
       "SLA guarantee",
@@ -297,7 +290,9 @@ const itemVariants: Variants = {
 
 export default function LandingPage() {
   const { isDark } = useTheme();
-  const [isAnnual, setIsAnnual] = useState(false);
+  // Live plan prices and limits; the cards fall back to the built-in copy if this fails.
+  const { data: livePlans } = useApi<{ data: { name: string; monthly_fee: number; vehicle_limit: number | null; staff_limit: number | null }[] }>("/api/public/plans");
+  const supportEmail = appConfig.platform.support_email;
   const countersRef = useRef<(HTMLParagraphElement | null)[]>([]);
 
   useEffect(() => {
@@ -930,44 +925,22 @@ export default function LandingPage() {
                 pricing
               </span>
             </h2>
-            <p className="text-slate-600 dark:text-white/45 text-base max-w-sm mx-auto mb-7">
-              No hidden fees. Start free for 14 days, no credit card required.
+            <p className="text-slate-600 dark:text-white/45 text-base max-w-md mx-auto">
+              One monthly fee per dealership, plus a 10% platform fee on payments
+              collected through DriveFleet. No setup fees.
             </p>
-
-            <div className="inline-flex items-center gap-4 bg-white dark:bg-white/4 border border-slate-200 dark:border-white/8 rounded-full px-5 py-2.5 shadow-sm dark:shadow-none">
-              <span
-                className="text-sm font-semibold transition-colors"
-                style={{
-                  color: isAnnual ? "var(--color-slate-400)" : "inherit",
-                }}
-              >
-                Monthly
-              </span>
-              <button
-                onClick={() => setIsAnnual(!isAnnual)}
-                className="w-11 h-6 rounded-full transition-colors duration-300 relative flex-shrink-0 bg-slate-200 dark:bg-white/15"
-                style={{ background: isAnnual ? "#7c3aed" : "" }}
-              >
-                <span
-                  className="absolute top-[3px] w-[18px] h-[18px] bg-white rounded-full shadow transition-all duration-300"
-                  style={{ left: isAnnual ? "25px" : "3px" }}
-                ></span>
-              </button>
-              <span
-                className={`text-sm font-semibold transition-colors ${isAnnual ? "text-slate-900 dark:text-white" : "text-slate-400 dark:text-white/40"}`}
-              >
-                Annual{" "}
-                <span className="text-emerald-500 dark:text-emerald-400 font-bold">
-                  −17%
-                </span>
-              </span>
-            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
             {PLANS.map((p, i) => {
-              const price =
-                p.monthly === null ? null : isAnnual ? p.annual : p.monthly;
+              const live = livePlans?.data.find((lp) => lp.name === p.name);
+              const price = live ? live.monthly_fee : p.monthly;
+              const limits = live
+                ? [
+                    live.vehicle_limit ? `Up to ${live.vehicle_limit} vehicles` : "Unlimited vehicles",
+                    live.staff_limit ? `${live.staff_limit} staff logins` : "Unlimited staff logins",
+                  ]
+                : [];
               return (
                 <div
                   key={i}
@@ -987,8 +960,9 @@ export default function LandingPage() {
                   <div className="font-display font-black text-slate-900 dark:text-white mb-1.5">
                     {price !== null ? (
                       <>
-                        <span className="text-[42px] tracking-tight">
-                          KSH {price.toLocaleString()}
+                        <span className="text-[34px] sm:text-[40px] tracking-tight whitespace-nowrap">
+                          <span className="text-lg sm:text-xl align-top mr-1">KSh</span>
+                          {price.toLocaleString()}
                         </span>
                         <span className="text-sm font-normal text-slate-500 dark:text-white/35">
                           /mo
@@ -1002,7 +976,7 @@ export default function LandingPage() {
                     {p.desc}
                   </p>
                   <div className="space-y-3 mb-8">
-                    {p.features.map((f, j) => (
+                    {[...limits, ...p.features].map((f, j) => (
                       <div key={j} className="flex items-start gap-3">
                         <div
                           className={`w-4 h-4 rounded-full ${p.bgCls} border ${p.borderCls} flex items-center justify-center ${p.accentCls} text-[9px] font-black flex-shrink-0 mt-0.5`}
@@ -1015,15 +989,12 @@ export default function LandingPage() {
                       </div>
                     ))}
                   </div>
-                  <button
-                    className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all ${p.btnCls}`}
+                  <a
+                    href={price === null ? (supportEmail ? `mailto:${supportEmail}?subject=DriveFleet%20Enterprise` : "/register") : "/register"}
+                    className={`block text-center w-full py-3.5 rounded-xl font-bold text-sm transition-all ${p.btnCls}`}
                   >
-                    {p.featured
-                      ? "Get Started"
-                      : p.monthly === null
-                        ? "Contact Sales"
-                        : "Start Free Trial"}
-                  </button>
+                    {price === null ? "Contact Sales" : "Get Started"}
+                  </a>
                 </div>
               );
             })}

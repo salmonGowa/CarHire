@@ -25,10 +25,14 @@ use App\Http\Controllers\Api\StatsController;
 use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Auth\AuthController;
+use App\Models\SubscriptionPlan;
 use Illuminate\Support\Facades\Route;
 
 // Everything under /api lives in the web group so it shares the session
 // cookie and CSRF protection with the SPA shell.
+
+// Public: the plans shown on the landing page's pricing section.
+Route::get('api/public/plans', fn () => ['data' => SubscriptionPlan::orderBy('sort_order')->get(['name', 'monthly_fee', 'vehicle_limit', 'staff_limit', 'description'])]);
 
 Route::prefix('api/auth')->group(function () {
     Route::get('user', [AuthController::class, 'show']);

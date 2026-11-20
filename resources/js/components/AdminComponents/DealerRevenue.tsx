@@ -1,22 +1,64 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { type Variants, motion } from "framer-motion";
 import { ArrowDownRight, ArrowUpRight, Download, Search } from "lucide-react";
 import { Table, Tr, Td } from "../Card";
 import LoadState from "../LoadState";
-import { api, ApiError } from "@/lib/api";
+import Button from "../Button";
+import Input from "../Input";
+import Modal, { MethodPicker } from "../Modal";
+import { api } from "@/lib/api";
+import { fieldErrors } from "@/lib/errors";
 import { downloadCsv } from "@/lib/csv";
 import { useApi } from "@/lib/useApi";
 import { useDebounced } from "@/lib/useDebounced";
 import { PAYMENT_LABEL, ksh, longDate, percentChange } from "@/lib/format";
-import type { FinanceSummary, Paginated, Payment } from "@/types/models";
+import type { FinanceSummary, Paginated, Payment, ReceivedMethod } from "@/types/models";
 
 const itemVariants: Variants = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
+const REFUND_METHODS = (["mpesa", "cash", "card", "bank"] as const).map((id) => ({ id, label: id === "bank" ? "Bank" : PAYMENT_LABEL[id] }));
+
+/** Record a refund: how the money went back, its reference and why. */
+function RefundForm({ payment, onDone }: { payment: Payment; onDone: (p: Payment) => void }) {
+  const [method, setMethod] = useState<ReceivedMethod | null>(payment.method === "deposit" ? null : payment.method);
+  const [reference, setReference] = useState("");
+  const [reason, setReason] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const needsRef = method === "mpesa" || method === "bank";
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setErrors({});
+    try {
+      const { data } = await api<{ data: Payment }>(`/api/payments/${payment.id}/refund`, {
+        method: "POST", body: { refund_method: method, refund_reference: reference.trim() || null, refund_reason: reason.trim() || null },
+      });
+      onDone(data);
+    } catch (err) {
+      setErrors(fieldErrors(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="p-6 space-y-4">
+      <MethodPicker label="Money returned by" value={method} options={REFUND_METHODS} onChange={setMethod} error={errors.refund_method} />
+      {needsRef && <Input label={method === "mpesa" ? "M-PESA reversal or B2C code" : "Bank reference"} value={reference} onChange={(e) => setReference(e.target.value)} required error={errors.refund_reference} />}
+      <Input label="Reason (optional)" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Booking cancelled by the dealer" error={errors.refund_reason} />
+      {(errors.form || errors.payment) && <p className="text-sm text-rose-600 dark:text-rose-400">{errors.form ?? errors.payment}</p>}
+      <Button type="submit" variant="danger" fullWidth loading={saving} disabled={!method}>Record refund of {ksh(payment.amount)}</Button>
+      <p className="text-[11px] text-center text-slate-400">Send the money back first. This records it; it doesn't move money.</p>
+    </form>
+  );
+}
 
 /** Dealer "Payments": money received, the platform fee taken, and the ledger of payments. */
 export default function DealerRevenue() {
   const [search, setSearch] = useState("");
   const term = useDebounced(search.trim());
-  const [message, setMessage] = useState("");
+  const [refunding, setRefunding] = useState<Payment | null>(null);
 
   const { data: summary, reload: reloadSummary } = useApi<FinanceSummary>("/api/finance/summary?months=6");
   const query = new URLSearchParams({ per_page: "100", ...(term && { search: term }) });
@@ -29,16 +71,10 @@ export default function DealerRevenue() {
   const change = summary ? percentChange(summary.month_to_date.gross, summary.previous_month.gross) : null;
   const ratePct = summary ? Math.round(summary.commission_rate * 100) : 10;
 
-  const refund = async (p: Payment) => {
-    if (!window.confirm(`Refund ${ksh(p.amount)} (${p.reference})? Make sure the money has been returned to the customer.`)) return;
-    try {
-      const { data: updated } = await api<{ data: Payment }>(`/api/payments/${p.id}/refund`, { method: "POST" });
-      setData((d) => d && { ...d, data: d.data.map((x) => (x.id === updated.id ? updated : x)) });
-      reloadSummary();
-      setMessage("");
-    } catch (err) {
-      setMessage(err instanceof ApiError ? (Object.values(err.errors)[0]?.[0] ?? err.message) : "Couldn't reach the server.");
-    }
+  const onRefunded = (updated: Payment) => {
+    setData((d) => d && { ...d, data: d.data.map((x) => (x.id === updated.id ? updated : x)) });
+    setRefunding(null);
+    reloadSummary();
   };
 
   const exportLedger = () =>
@@ -123,7 +159,6 @@ export default function DealerRevenue() {
               className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm text-slate-700 dark:text-slate-200 outline-none focus:ring-2 ring-blue-500/20" />
           </div>
         </div>
-        {message && <p className="px-6 pt-4 text-sm text-rose-600 dark:text-rose-400">{message}</p>}
         <LoadState loading={loading} error={error} onRetry={reload} empty={payments.length === 0 && (term ? "No payments match." : "No payments yet. Record them from the Booking Manager.")}>
           <Table heads={["Payment", "Client", "Amount", "Platform Fee", "Your Net", "Status", ""]}>
             {payments.map((p) => (
@@ -147,10 +182,13 @@ export default function DealerRevenue() {
                   }`}>
                     {p.status === "refunded" ? "Refunded" : p.settled ? "Settled" : "Awaiting payout"}
                   </span>
+                  {p.status === "refunded" && p.refund_method && (
+                    <span className="block text-[10px] font-bold text-slate-400 mt-1">via {PAYMENT_LABEL[p.refund_method]}{p.refund_reference ? ` ${p.refund_reference}` : ""}</span>
+                  )}
                 </Td>
                 <Td className="text-right">
                   {p.can_refund && (
-                    <button onClick={() => refund(p)} className="text-xs font-bold text-slate-500 hover:text-rose-600 px-2 py-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-500/10">Refund</button>
+                    <button onClick={() => setRefunding(p)} className="text-xs font-bold text-slate-500 hover:text-rose-600 px-2 py-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-500/10">Refund</button>
                   )}
                 </Td>
               </Tr>
@@ -159,6 +197,10 @@ export default function DealerRevenue() {
         </LoadState>
       </motion.div>
 
+      <Modal open={!!refunding} onClose={() => setRefunding(null)} title="Refund payment" width="max-w-md"
+        subtitle={refunding && <>{refunding.reference} · {refunding.booking?.customer_name} · {ksh(refunding.amount)}</>}>
+        {refunding && <RefundForm key={refunding.id} payment={refunding} onDone={onRefunded} />}
+      </Modal>
     </motion.div>
   );
 }

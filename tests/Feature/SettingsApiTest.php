@@ -123,7 +123,7 @@ class SettingsApiTest extends TestCase
 
     public function test_maintenance_mode_locks_out_everyone_but_super_admins(): void
     {
-        $customer = User::factory()->create(['role' => UserRole::Customer, 'password' => 'password']);
+        $customer = User::factory()->create(['role' => UserRole::Customer]); // factory password is "password"
         $this->set(['maintenance_mode' => true, 'maintenance_message' => 'Back at 6pm']);
 
         $this->actingAs($customer)->getJson('/api/bookings')->assertStatus(503)->assertJsonPath('message', 'Back at 6pm');

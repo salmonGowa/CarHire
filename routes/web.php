@@ -13,8 +13,10 @@ use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\Api\MaintenanceController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PayoutController;
+use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\PromotionController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\SavedVehicleController;
@@ -96,12 +98,27 @@ Route::prefix('api')->middleware('auth')->group(function () {
     Route::post('notifications/read-all', [NotificationController::class, 'readAll']);
     Route::post('notifications/{id}/read', [NotificationController::class, 'read']);
 
+    // The signed-in user's own account.
+    Route::get('profile', [ProfileController::class, 'show']);
+    Route::put('profile', [ProfileController::class, 'update']);
+    Route::put('profile/preferences', [ProfileController::class, 'preferences']);
+    Route::put('profile/password', [ProfileController::class, 'password']);
+    Route::post('profile/sign-out-others', [ProfileController::class, 'signOutOthers']);
+    Route::delete('profile', [ProfileController::class, 'destroy']);
+    Route::post('profile/documents', [ProfileController::class, 'uploadDocument']);
+    Route::delete('profile/documents/{document}', [ProfileController::class, 'deleteDocument']);
+    Route::get('documents/{document}/file', [ProfileController::class, 'downloadDocument']);
+    Route::get('notifications', [NotificationController::class, 'index']);
+    Route::post('notifications/read-all', [NotificationController::class, 'readAll']);
+    Route::post('notifications/{id}/read', [NotificationController::class, 'read']);
+
     // Support tickets: everyone signed in; visibility is scoped in the controller.
     Route::get('support-tickets', [SupportTicketController::class, 'index']);
     Route::post('support-tickets', [SupportTicketController::class, 'store']);
     Route::get('support-tickets/{ticket}', [SupportTicketController::class, 'show']);
     Route::post('support-tickets/{ticket}/messages', [SupportTicketController::class, 'reply']);
     Route::patch('support-tickets/{ticket}', [SupportTicketController::class, 'update']);
+    Route::get('support-attachments/{attachment}', [SupportTicketController::class, 'attachment']);
     Route::get('support-attachments/{attachment}', [SupportTicketController::class, 'attachment']);
 
     // The dealer's own account: plan, charges and compliance documents.

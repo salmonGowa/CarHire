@@ -44,7 +44,7 @@ class PaymentController extends Controller
 
         $data = $request->validate([
             'amount' => ['required', 'integer', 'min:1'],
-            'method' => ['required', Rule::enum(PaymentMethod::class)],
+            'method' => ['required', Rule::enum(PaymentMethod::class)->except(PaymentMethod::Deposit)],
             'transaction_code' => [
                 Rule::requiredIf(fn () => in_array($request->input('method'), ['mpesa', 'bank'], true)),
                 'nullable', 'string', 'max:40', 'unique:payments,transaction_code',
@@ -65,10 +65,16 @@ class PaymentController extends Controller
         return new PaymentResource($payment->load(['booking.vehicle', 'invoice', 'dealer']));
     }
 
-    public function refund(Payment $payment): PaymentResource
+    /** Mark a payment refunded and record how the money went back to the customer. */
+    public function refund(Request $request, Payment $payment): PaymentResource
     {
         Gate::authorize('refund', $payment);
+        $details = $request->validate([
+            'refund_method' => ['required', Rule::enum(PaymentMethod::class)->except(PaymentMethod::Deposit)],
+            'refund_reference' => [Rule::requiredIf(fn () => in_array($request->input('refund_method'), ['mpesa', 'bank'], true)), 'nullable', 'string', 'max:60'],
+            'refund_reason' => ['nullable', 'string', 'max:255'],
+        ], ['refund_reference.required' => 'Enter the M-PESA or bank reference for the refund.']);
 
-        return new PaymentResource($this->finance->refund($payment)->load(['booking.vehicle', 'invoice', 'dealer']));
+        return new PaymentResource($this->finance->refund($payment, $details, $request->user())->load(['booking.vehicle', 'invoice', 'dealer']));
     }
 }

@@ -38,6 +38,29 @@ class FinanceService
     }
 
     /**
+     * Add return charges to the booking's invoice as extra lines.
+     *
+     * @param  list<array{amount: int, vat: int, total: int}>  $charges
+     */
+    public function addCharges(Booking $booking, array $charges): void
+    {
+        if ($charges) {
+            $this->addToInvoice($booking, array_sum(array_column($charges, 'amount')), array_sum(array_column($charges, 'vat')));
+        }
+    }
+
+    /** Grow the invoice (issuing it if needed) by an amount before VAT plus its VAT. */
+    public function addToInvoice(Booking $booking, int $net, int $vat): void
+    {
+        $invoice = Invoice::whereKey($this->issueInvoice($booking)->id)->lockForUpdate()->first();
+        $invoice->update([
+            'subtotal' => $invoice->subtotal + $net,
+            'vat' => $invoice->vat + $vat,
+            'total' => $invoice->total + $net + $vat,
+        ]);
+    }
+
+    /**
      * A cancelled booking's invoice is voided unless money was taken; then it
      * stays open so staff can refund against it.
      */
@@ -94,17 +117,27 @@ class FinanceService
         });
     }
 
-    public function refund(Payment $payment): Payment
+    /**
+     * @param  array{refund_method?: string|null, refund_reference?: string|null, refund_reason?: string|null}  $details  how the money went back
+     */
+    public function refund(Payment $payment, array $details = [], ?User $actor = null): Payment
     {
         if ($payment->status === PaymentStatus::Refunded) {
             throw ValidationException::withMessages(['payment' => 'This payment was already refunded.']);
+        }
+        if ($payment->method === PaymentMethod::Deposit) {
+            throw ValidationException::withMessages(['payment' => 'This was paid from the security deposit and is settled with the deposit, not refunded separately.']);
         }
         if ($payment->payout_id !== null) {
             throw ValidationException::withMessages(['payment' => 'This payment is part of a payout already; adjust it with the platform team.']);
         }
 
-        return DB::transaction(function () use ($payment) {
-            $payment->update(['status' => PaymentStatus::Refunded, 'refunded_at' => now()]);
+        return DB::transaction(function () use ($payment, $details, $actor) {
+            $payment->update([
+                'status' => PaymentStatus::Refunded, 'refunded_at' => now(),
+                'refund_method' => $details['refund_method'] ?? null, 'refund_reference' => $details['refund_reference'] ?? null,
+                'refund_reason' => $details['refund_reason'] ?? null, 'refunded_by' => $actor?->id,
+            ]);
             AuditLog::record('payment.refunded', 'Refunded KSh '.number_format($payment->amount)." ({$payment->reference})", $payment, 'warning');
             $payment->invoice->refreshAmountPaid();
 

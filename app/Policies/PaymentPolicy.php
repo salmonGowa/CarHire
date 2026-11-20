@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Models\Payment;
 use App\Models\User;
@@ -15,6 +16,7 @@ class PaymentPolicy
     {
         $manages = $user->isSuperAdmin() || ($user->isDealer() && $user->dealer_id === $payment->dealer_id);
 
-        return $manages && $payment->status === PaymentStatus::Completed && $payment->payout_id === null;
+        // Deposit applications are reversed by settling the deposit, not refunded.
+        return $manages && $payment->status === PaymentStatus::Completed && $payment->payout_id === null && $payment->method !== PaymentMethod::Deposit;
     }
 }

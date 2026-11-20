@@ -116,9 +116,9 @@ class FinanceApiTest extends TestCase
         $this->actingAs($this->staff)->patchJson("/api/bookings/{$paid->id}/status", ['status' => 'cancelled']);
         $this->assertSame('paid', $paid->invoice->fresh()->status(), 'paid invoice stays open for a refund');
 
-        $this->actingAs($this->staff)->postJson("/api/payments/{$paymentId}/refund")->assertOk()->assertJsonPath('data.status', 'refunded');
+        $this->actingAs($this->staff)->postJson("/api/payments/{$paymentId}/refund", ['refund_method' => 'cash'])->assertOk()->assertJsonPath('data.status', 'refunded');
         $this->assertSame('void', $paid->invoice->fresh()->status());
-        $this->actingAs($this->staff)->postJson("/api/payments/{$paymentId}/refund")->assertForbidden();
+        $this->actingAs($this->staff)->postJson("/api/payments/{$paymentId}/refund", ['refund_method' => 'cash'])->assertForbidden();
     }
 
     public function test_payout_cycle_nets_platform_collections_against_all_fees(): void
@@ -138,7 +138,7 @@ class FinanceApiTest extends TestCase
 
         // Nothing left to settle; settled payments can no longer be refunded.
         $this->actingAs($admin)->postJson('/api/payouts/generate')->assertOk()->assertJsonCount(0, 'data');
-        $this->actingAs($this->staff)->postJson('/api/payments/'.Payment::first()->id.'/refund')->assertForbidden();
+        $this->actingAs($this->staff)->postJson('/api/payments/'.Payment::first()->id.'/refund', ['refund_method' => 'cash'])->assertForbidden();
 
         $this->actingAs($admin)->postJson("/api/payouts/{$payout['id']}/mark-paid", ['transfer_reference' => 'TRF-1'])
             ->assertOk()->assertJsonPath('data.status', 'paid');

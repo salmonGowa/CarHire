@@ -14,7 +14,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Enum;
 
 class SubscriptionController extends Controller
 {
@@ -111,7 +110,7 @@ class SubscriptionController extends Controller
     public function pay(Request $request, SubscriptionCharge $charge, SubscriptionBilling $billing): JsonResponse
     {
         $data = $request->validate([
-            'method' => ['required', new Enum(PaymentMethod::class)],
+            'method' => ['required', Rule::enum(PaymentMethod::class)->except(PaymentMethod::Deposit)],
             'transaction_ref' => ['nullable', 'string', 'max:60'],
         ]);
         $charge = $billing->recordPayment($charge, PaymentMethod::from($data['method']), $data['transaction_ref'] ?? null, $request->user());

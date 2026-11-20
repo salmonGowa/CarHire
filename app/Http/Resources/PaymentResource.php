@@ -24,6 +24,9 @@ class PaymentResource extends JsonResource
             'status' => $this->status->value,
             'paid_at' => $this->paid_at->toIso8601String(),
             'refunded_at' => $this->refunded_at?->toIso8601String(),
+            'refund_method' => $this->refund_method,
+            'refund_reference' => $this->refund_reference,
+            'refund_reason' => $this->refund_reason,
             // The fee split is the dealer's and platform's business, not the customer's.
             'vat' => $this->when($staff, $this->vat),
             'commission' => $this->when($staff, $this->commission),

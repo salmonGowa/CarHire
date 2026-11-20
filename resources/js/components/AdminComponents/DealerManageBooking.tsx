@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
-  ClipboardList, Search, Plus, Clock, User, ArrowRight, CreditCard, Wallet, AlertTriangle,
+  ClipboardList, Search, Plus, Clock, User, ArrowRight, CreditCard, Wallet, AlertTriangle, CalendarClock, ShieldCheck,
 } from "lucide-react";
 import Button from "../Button";
 import { Table, Tr, Td } from "../Card";
@@ -10,6 +10,7 @@ import LoadState from "../LoadState";
 import BookingStatusPill from "../StatusPill";
 import InvoiceStatusPill from "../InvoiceStatusPill";
 import RecordPaymentModal, { type PaymentTarget } from "../RecordPaymentModal";
+import { ExtensionModal, HandoverModal, ReturnModal, SettleDepositModal } from "./RentalModals";
 import { api, ApiError } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { PAYMENT_LABEL, TRANSITION_ACTION, dateTime, ksh, shortDate } from "@/lib/format";
@@ -38,6 +39,8 @@ export default function DealerManageBooking() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [actionError, setActionError] = useState("");
   const [paying, setPaying] = useState<PaymentTarget | null>(null);
+  // Handover and return go through forms that record the car's condition and the deposit.
+  const [dialog, setDialog] = useState<{ kind: "handover" | "return" | "deposit" | "extension"; booking: Booking } | null>(null);
 
   const query = new URLSearchParams({ per_page: "200", ...(view !== "all" && { status: view }) });
   const { data, setData, loading, error, reload } = useApi<Paginated<Booking>>(`/api/bookings?${query}`);
@@ -48,17 +51,30 @@ export default function DealerManageBooking() {
     (b) => !q || b.customer.name.toLowerCase().includes(q) || b.reference.toLowerCase().includes(q),
   );
 
+  const replaceRow = (updated: Booking) =>
+    setData((d) => d && {
+      ...d,
+      // Drop the row if it no longer matches the current tab.
+      data: d.data.flatMap((b) => (b.id !== updated.id ? [b] : view === "all" || view === updated.status ? [updated] : [])),
+    });
+
+  const onDialogDone = (updated: Booking) => {
+    replaceRow(updated);
+    setDialog(null);
+    reloadStats();
+  };
+
   const changeStatus = async (booking: Booking, status: BookingStatus) => {
+    if (booking.can_operate && (status === "active" || status === "completed")) {
+      setDialog({ kind: status === "active" ? "handover" : "return", booking });
+      return;
+    }
     if (status === "cancelled" && !window.confirm(`Cancel booking ${booking.reference} for ${booking.customer.name}?`)) return;
     setBusyId(booking.id);
     setActionError("");
     try {
       const { data: updated } = await api<{ data: Booking }>(`/api/bookings/${booking.id}/status`, { method: "PATCH", body: { status } });
-      setData((d) => d && {
-        ...d,
-        // Drop the row if it no longer matches the current tab.
-        data: d.data.flatMap((b) => (b.id !== updated.id ? [b] : view === "all" || view === updated.status ? [updated] : [])),
-      });
+      replaceRow(updated);
       reloadStats();
     } catch (err) {
       setActionError(err instanceof ApiError ? (err.errors.status?.[0] ?? err.message) : "Couldn't reach the server.");
@@ -185,6 +201,12 @@ export default function DealerManageBooking() {
                         <><CreditCard className="w-3 h-3" /> {b.payment_method ? PAYMENT_LABEL[b.payment_method] : "Not set"} · not invoiced</>
                       )}
                     </div>
+                    {b.deposit.held > 0 && (
+                      <span className="flex items-center gap-1 mt-1 text-[10px] font-bold text-slate-500"><ShieldCheck className="w-3 h-3 text-emerald-500" /> {ksh(b.deposit.held)} deposit held</span>
+                    )}
+                    {!!b.charges?.length && (
+                      <span className="mt-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">+{ksh(b.charges.reduce((n, c) => n + c.total, 0))} return charges</span>
+                    )}
                   </div>
                 </Td>
 
@@ -194,6 +216,18 @@ export default function DealerManageBooking() {
 
                 <Td className="text-right">
                   <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                    {b.can_operate && b.extension?.status === "pending" && (
+                      <button onClick={() => setDialog({ kind: "extension", booking: b })}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-500/10 dark:text-sky-300 dark:hover:bg-sky-500/20">
+                        <CalendarClock className="w-3.5 h-3.5" /> Extension +{b.extension.extra_days}d
+                      </button>
+                    )}
+                    {b.can_operate && b.deposit.held > 0 && (b.status === "completed" || b.status === "cancelled") && (
+                      <button onClick={() => setDialog({ kind: "deposit", booking: b })}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20">
+                        Settle deposit
+                      </button>
+                    )}
                     {b.can_record_payment && b.invoice && b.invoice.balance > 0 && (
                       <button
                         onClick={() => setPaying({ bookingId: b.id, label: `${b.reference} · ${b.customer.name}`, balance: b.invoice!.balance })}
@@ -202,7 +236,9 @@ export default function DealerManageBooking() {
                         Record payment
                       </button>
                     )}
-                    {b.allowed_transitions.length === 0 && !(b.can_record_payment && b.invoice && b.invoice.balance > 0) && <span className="text-xs text-slate-400">—</span>}
+                    {b.allowed_transitions.length === 0 && !(b.can_record_payment && b.invoice && b.invoice.balance > 0)
+                      && !(b.can_operate && (b.extension?.status === "pending" || (b.deposit.held > 0 && ["completed", "cancelled"].includes(b.status))))
+                      && <span className="text-xs text-slate-400">—</span>}
                     {b.allowed_transitions.map((next) => (
                       <button
                         key={next}
@@ -222,6 +258,10 @@ export default function DealerManageBooking() {
       </div>
 
       <RecordPaymentModal key={paying?.bookingId ?? "none"} target={paying} onClose={() => setPaying(null)} onRecorded={onRecorded} />
+      <HandoverModal booking={dialog?.kind === "handover" ? dialog.booking : null} onClose={() => setDialog(null)} onDone={onDialogDone} />
+      <ReturnModal booking={dialog?.kind === "return" ? dialog.booking : null} onClose={() => setDialog(null)} onDone={onDialogDone} />
+      <SettleDepositModal booking={dialog?.kind === "deposit" ? dialog.booking : null} onClose={() => setDialog(null)} onDone={onDialogDone} />
+      <ExtensionModal booking={dialog?.kind === "extension" ? dialog.booking : null} onClose={() => setDialog(null)} onDone={onDialogDone} />
 
       {/* ── Operational Insights (Footer) ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

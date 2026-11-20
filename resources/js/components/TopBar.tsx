@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
-import { Menu, Bell, Search, Info, CheckCircle2, AlertTriangle, ShieldAlert } from "lucide-react";
+import { Menu, Bell, Info, CheckCircle2, AlertTriangle, ShieldAlert } from "lucide-react";
 import NAV_ITEMS from "./NavITems";
+import GlobalSearch from "./GlobalSearch";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { dateTime } from "@/lib/format";
@@ -63,14 +64,8 @@ export default function TopBar({ activeTab, onMenuOpen }: { activeTab: string; o
         <p className="text-xs hidden sm:block text-slate-500 dark:text-slate-400">DriveFleet Management</p>
       </div>
 
-      {/* Search Bar */}
-      <div className="hidden md:flex items-center gap-2 px-3 py-2 border rounded-xl w-full max-w-sm transition-colors bg-slate-50 border-slate-200 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 dark:bg-slate-900/50 dark:border-slate-800 dark:focus-within:border-blue-500/50">
-        <Search className="w-4 h-4 text-slate-400" />
-        <input
-          placeholder="Search bookings, users, or vehicles..."
-          className="bg-transparent outline-none text-sm w-full placeholder-slate-400 text-slate-800 dark:text-slate-200 dark:placeholder-slate-500"
-        />
-      </div>
+      {/* Search */}
+      {user && <GlobalSearch role={user.role} />}
 
       {/* Header Actions */}
       <div className="flex items-center gap-3">

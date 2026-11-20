@@ -30,10 +30,10 @@ const LOYALTY = {
 };
 
 const QUICK_ACTIONS = [
-  { icon: PlusCircle, label: "Extend Trip", color: "text-blue-500", bg: "bg-blue-50 dark:bg-blue-500/10" },
-  { icon: LifeBuoy, label: "Roadside Assist", color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-500/10" },
-  { icon: AlertTriangle, label: "Report Issue", color: "text-rose-500", bg: "bg-rose-50 dark:bg-rose-500/10" },
-  { icon: Gift, label: "Redeem Points", color: "text-amber-500", bg: "bg-amber-50 dark:bg-amber-500/10" },
+  { icon: PlusCircle, label: "My Trip", to: "/customer-active-trip", color: "text-blue-500", bg: "bg-blue-50 dark:bg-blue-500/10" },
+  { icon: LifeBuoy, label: "Roadside Assist", to: "/customer-support?roadside=1", color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-500/10" },
+  { icon: AlertTriangle, label: "Report Issue", to: "/customer-complaint", color: "text-rose-500", bg: "bg-rose-50 dark:bg-rose-500/10" },
+  { icon: Gift, label: "My Points", to: "/customer-rewards", color: "text-amber-500", bg: "bg-amber-50 dark:bg-amber-500/10" },
 ];
 
 
@@ -82,7 +82,7 @@ export default function CustomerDashboard() {
       {/* Quick Actions Row */}
       <motion.div variants={itemVariants} className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {QUICK_ACTIONS.map((action, idx) => (
-          <button key={idx} className={`flex flex-col items-center justify-center p-4 rounded-2xl border border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#0B1120] hover:border-slate-300 dark:hover:border-slate-700 transition-all group shadow-sm hover:shadow-md`}>
+          <button key={idx} onClick={() => navigate(action.to)} className={`flex flex-col items-center justify-center p-4 rounded-2xl border border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#0B1120] hover:border-slate-300 dark:hover:border-slate-700 transition-all group shadow-sm hover:shadow-md`}>
             <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 transition-transform group-hover:scale-110 ${action.bg} ${action.color}`}>
               <action.icon className="w-5 h-5" />
             </div>

@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Enums\BookingStatus;
+use App\Enums\UserRole;
 use App\Models\Booking;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -22,16 +24,39 @@ class BookingReminders
 
     public const OVERDUE_GRACE_MINUTES = 30;
 
+    /** Still not back this long after the return time: the platform team is told. */
+    public const ESCALATE_AFTER_HOURS = 24;
+
     public function __construct(private Notifier $notifier) {}
 
-    /** @return array{pickup: int, return: int, overdue: int} */
+    /** @return array{pickup: int, return: int, overdue: int, escalated: int} */
     public function send(): array
     {
         return [
             'pickup' => $this->pickupReminders(),
             'return' => $this->returnReminders(),
             'overdue' => $this->overdueAlerts(),
+            'escalated' => $this->escalations(),
         ];
+    }
+
+    private function escalations(): int
+    {
+        $admins = User::where('role', UserRole::SuperAdmin)->whereNull('disabled_at')->get();
+
+        return $this->each(
+            Booking::where('status', BookingStatus::Active)->whereNull('overdue_escalated_at')
+                ->where('return_at', '<', now()->subHours(self::ESCALATE_AFTER_HOURS)),
+            'overdue_escalated_at',
+            function (Booking $b) use ($admins) {
+                $late = (int) $b->return_at->diffInHours(now());
+                foreach ($admins as $admin) {
+                    $this->notifier->user($admin, "Rental {$late} h overdue",
+                        "{$b->reference} ({$this->vehicle($b)}) with {$b->customer_name} from {$this->dealerName($b)} was due back {$this->when($b->return_at)}.",
+                        '/superadmin-rentals', 'error', 'booking');
+                }
+            },
+        );
     }
 
     private function pickupReminders(): int

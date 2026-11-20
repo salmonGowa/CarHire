@@ -25,7 +25,7 @@ Schedule::call(fn () => Cache::put(PlatformAlerts::SCHEDULER_HEARTBEAT, now(), n
 
 Artisan::command('drivefleet:send-reminders', function (BookingReminders $reminders) {
     $sent = $reminders->send();
-    $this->info("Sent {$sent['pickup']} pickup, {$sent['return']} return and {$sent['overdue']} overdue reminders.");
+    $this->info("Sent {$sent['pickup']} pickup, {$sent['return']} return and {$sent['overdue']} overdue reminders; escalated {$sent['escalated']} long-overdue rentals.");
 })->purpose('Text and email pickup, return and overdue reminders');
 
 Schedule::command('drivefleet:send-reminders')->everyFifteenMinutes()->withoutOverlapping();

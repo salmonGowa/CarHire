@@ -142,8 +142,8 @@ class MessagingTest extends TestCase
         $returning = Booking::factory()->for($vehicle)->create(['customer_id' => $customer->id, 'status' => BookingStatus::Active, 'pickup_at' => now()->subDay(), 'return_at' => now()->addHours(2)]);
         $overdue = Booking::factory()->for($vehicle)->create(['customer_id' => null, 'customer_phone' => '0722000111', 'status' => BookingStatus::Active, 'pickup_at' => now()->subDays(3), 'return_at' => now()->subHour()]);
 
-        $this->assertSame(['pickup' => 1, 'return' => 1, 'overdue' => 1], app(BookingReminders::class)->send());
-        $this->assertSame(['pickup' => 0, 'return' => 0, 'overdue' => 0], app(BookingReminders::class)->send());
+        $this->assertSame(['pickup' => 1, 'return' => 1, 'overdue' => 1, 'escalated' => 0], app(BookingReminders::class)->send());
+        $this->assertSame(['pickup' => 0, 'return' => 0, 'overdue' => 0, 'escalated' => 0], app(BookingReminders::class)->send());
 
         Notification::assertSentTo($customer, PlatformNotification::class, fn ($n) => $n->title === 'Pickup reminder' && $n->sms);
         Notification::assertSentTo($customer, PlatformNotification::class, fn ($n) => $n->title === 'Return reminder');

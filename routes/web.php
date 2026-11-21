@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\CustomerAccountController;
 use App\Http\Controllers\Api\DealerCustomerController;
 use App\Http\Controllers\Api\DealerDocumentController;
+use App\Http\Controllers\Api\DealerPayoutDetailsController;
 use App\Http\Controllers\Api\DealerStaffController;
 use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\FinanceController;
@@ -149,6 +150,8 @@ Route::prefix('api')->middleware('auth')->group(function () {
         Route::get('subscription', [Admin\SubscriptionController::class, 'mine']);
         Route::get('dealer-policy', [RentalController::class, 'policy']);
         Route::put('dealer-policy', [RentalController::class, 'updatePolicy']);
+        Route::get('dealer-payout-details', [DealerPayoutDetailsController::class, 'show']);
+        Route::put('dealer-payout-details', [DealerPayoutDetailsController::class, 'update'])->middleware('throttle:6,1');
         Route::get('dealer-staff', [DealerStaffController::class, 'index']);
         Route::post('dealer-staff', [DealerStaffController::class, 'store']);
         Route::patch('dealer-staff/{staff}', [DealerStaffController::class, 'update']);

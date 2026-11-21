@@ -11,7 +11,7 @@ use Illuminate\Support\Str;
 
 #[Fillable([
     'reference', 'dealer_id', 'period_start', 'period_end', 'payment_count', 'gross_collected',
-    'cash_collected', 'commission', 'net', 'status', 'paid_at', 'transfer_reference', 'created_by',
+    'cash_collected', 'commission', 'net', 'status', 'paid_at', 'transfer_reference', 'paid_to', 'created_by',
 ])]
 class Payout extends Model
 {

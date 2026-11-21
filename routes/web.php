@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\Hr;
 use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\Api\MaintenanceController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\OnlinePaymentController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PayoutController;
 use App\Http\Controllers\Api\ProfileController;
@@ -85,6 +86,12 @@ Route::prefix('api')->middleware('auth')->group(function () {
     Route::get('payments', [PaymentController::class, 'index']);
     Route::post('bookings/{booking}/payments', [PaymentController::class, 'store']);
     Route::post('payments/{payment}/refund', [PaymentController::class, 'refund']);
+
+    // Paying online: M-PESA prompts and card checkouts (see OnlinePayments).
+    Route::get('bookings/{booking}/online-payments', [OnlinePaymentController::class, 'index']);
+    Route::post('bookings/{booking}/pay/mpesa', [OnlinePaymentController::class, 'mpesa'])->middleware('throttle:6,1');
+    Route::post('bookings/{booking}/pay/card', [OnlinePaymentController::class, 'card'])->middleware('throttle:6,1');
+    Route::get('online-payments/{onlinePayment}', [OnlinePaymentController::class, 'show']);
     Route::get('finance/summary', FinanceController::class);
     Route::get('payouts', [PayoutController::class, 'index']);
 

@@ -447,3 +447,25 @@ export interface AuditEntry {
   severity: "info" | "warning" | "critical";
   ip_address: string | null;
 }
+
+// --- Online payments -------------------------------------------------------
+
+export type OnlinePaymentStatus = "pending" | "succeeded" | "failed" | "cancelled" | "expired";
+
+/** An M-PESA STK prompt or card checkout (see app/Services/OnlinePayments.php). */
+export interface OnlinePayment {
+  id: number;
+  reference: string;
+  provider: "mpesa" | "card";
+  /** No money moves: MPESA_DRIVER / CARD_DRIVER is "simulate". */
+  simulated: boolean;
+  amount: number;
+  phone: string;
+  status: OnlinePaymentStatus;
+  message: string | null;
+  receipt: string | null;
+  booking?: { id: number; reference: string };
+  created_at: string;
+  expires_at: string;
+  completed_at: string | null;
+}

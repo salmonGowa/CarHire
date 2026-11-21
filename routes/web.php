@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\StatsController;
 use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\Payments\CardCheckoutController;
 use App\Models\SubscriptionPlan;
 use Illuminate\Support\Facades\Route;
 
@@ -232,6 +233,14 @@ Route::prefix('api')->middleware('auth')->group(function () {
     });
 });
 
+// Card checkout: where the provider sends the customer back (no sign-in needed,
+// the session may have lapsed), and the stand-in checkout used in development.
+Route::get('payments/card/return', [CardCheckoutController::class, 'back'])->name('payments.card.return');
+Route::middleware('auth')->group(function () {
+    Route::get('payments/card/simulate/{reference}', [CardCheckoutController::class, 'simulate'])->name('payments.card.simulate');
+    Route::post('payments/card/simulate/{reference}', [CardCheckoutController::class, 'decide'])->name('payments.card.simulate.decide');
+});
+
 // The React app (resources/js) handles its own routing with react-router,
 // so every non-API, non-asset path renders the same SPA shell.
-Route::view('/{any?}', 'app')->where('any', '^(?!api|build|up).*$');
+Route::view('/{any?}', 'app')->where('any', '^(?!api|build|up|webhooks).*$');

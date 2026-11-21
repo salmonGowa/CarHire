@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 
 #[Fillable([
@@ -93,5 +94,11 @@ class Payment extends Model
             $user->isDealer() => $query->where('dealer_id', $user->dealer_id),
             default => $query->where('customer_id', $user->id),
         };
+    }
+
+    /** Set when the payment came in online (M-PESA prompt or card checkout). */
+    public function onlinePayment(): HasOne
+    {
+        return $this->hasOne(OnlinePayment::class);
     }
 }

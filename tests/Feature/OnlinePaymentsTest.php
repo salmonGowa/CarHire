@@ -98,6 +98,7 @@ class OnlinePaymentsTest extends TestCase
         $this->assertSame($payment->id, OnlinePayment::sole()->payment_id);
         Notification::assertSentTo($this->manager, PlatformNotification::class, fn ($n) => $n->title === 'Online payment received');
         Notification::assertSentTo($this->customer, PlatformNotification::class, fn ($n) => $n->title === 'Payment received');
+        $this->actingAs($this->manager)->getJson('/api/payments')->assertJsonPath('data.0.online', true);
     }
 
     public function test_prompts_are_validated_and_limited_to_the_booking_people(): void

@@ -130,6 +130,8 @@ export interface Payment {
   /** deposit = taken from the security deposit the dealer held. */
   method: ReceivedMethod | "deposit";
   transaction_code: string | null;
+  /** Paid by the customer online (M-PESA prompt or card checkout). */
+  online?: boolean;
   status: "completed" | "refunded";
   paid_at: string;
   refunded_at: string | null;

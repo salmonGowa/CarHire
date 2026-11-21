@@ -21,7 +21,7 @@ class PaymentController extends Controller
     {
         $payments = Payment::query()
             ->visibleTo($request->user())
-            ->with(['booking.vehicle', 'invoice', 'dealer'])
+            ->with(['booking.vehicle', 'invoice', 'dealer', 'onlinePayment'])
             ->when($request->filled('search'), function ($q) use ($request) {
                 $term = '%'.$request->string('search').'%';
                 $q->where(fn ($q) => $q->where('reference', 'like', $term)

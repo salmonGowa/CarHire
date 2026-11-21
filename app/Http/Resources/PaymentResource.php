@@ -21,6 +21,8 @@ class PaymentResource extends JsonResource
             'amount' => $this->amount,
             'method' => $this->method->value,
             'transaction_code' => $this->transaction_code,
+            // Paid by the customer online, rather than recorded by staff.
+            'online' => $this->whenLoaded('onlinePayment', fn () => $this->onlinePayment !== null),
             'status' => $this->status->value,
             'paid_at' => $this->paid_at->toIso8601String(),
             'refunded_at' => $this->refunded_at?->toIso8601String(),

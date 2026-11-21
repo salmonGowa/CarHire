@@ -165,7 +165,10 @@ export default function DealerRevenue() {
               <Tr key={p.id}>
                 <Td label="Payment">
                   <span className="font-mono font-bold text-blue-500 block">{p.reference}</span>
-                  <span className="text-[10px] font-bold text-slate-400">{longDate(p.paid_at)} · {PAYMENT_LABEL[p.method]}{p.transaction_code ? ` ${p.transaction_code}` : ""}</span>
+                  <span className="text-[10px] font-bold text-slate-400">
+                    {longDate(p.paid_at)} · {PAYMENT_LABEL[p.method]}{p.transaction_code ? ` ${p.transaction_code}` : ""}
+                    {p.online && <span className="ml-1.5 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 uppercase tracking-widest text-[9px]">Online</span>}
+                  </span>
                 </Td>
                 <Td label="Client">
                   <span className="font-bold text-slate-900 dark:text-white block">{p.booking?.customer_name}</span>

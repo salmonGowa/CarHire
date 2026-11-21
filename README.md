@@ -130,6 +130,10 @@ decides their dashboard; dealer staff belong to a dealership via `dealer_id`.
 | `POST /api/bookings/{id}/handover`, `GET …/return-quote`, `POST …/return`, `POST …/deposit/settle` | dealer staff for the booking, super admins | handover and return inspections (photos on the private disk), return charges, deposit settlement |
 | `POST /api/bookings/{id}/extensions`, `POST /api/booking-extensions/{id}/decide` | the booking's customer / dealer staff | ask for more time; approve or decline |
 | `GET/PUT /api/dealer-policy` | dealer staff (changes: dealer managers) | deposit and return-charge rules |
+| `POST /api/bookings/{id}/pay/mpesa`, `POST …/pay/card`, `GET /api/online-payments/{id}`, `GET /api/bookings/{id}/online-payments` | the booking's customer (M-PESA prompts also dealer staff) | pay online and follow the attempt |
+| `GET/PUT /api/dealer-payout-details` | dealer staff (changes: dealer managers, with their password) | where payouts go; masked for other staff |
+| `GET /api/admin/online-payments?status=attention\|pending\|succeeded\|unsuccessful` | super admins | every online payment attempt |
+| `POST /webhooks/mpesa/{token}`, `POST /webhooks/paystack` | payment providers (no session) | M-PESA STK results; Paystack signed events |
 | `GET /api/support-attachments/{id}` | ticket participants | photos/PDFs attached to support messages |
 | `GET/PUT /api/admin/settings` | super admins | runtime platform settings (see below); every change is audited |
 | `GET /api/admin/overview`, `/api/admin/reports?period=7d\|30d\|6m\|ytd\|all`, `/api/admin/integrations` | super admins | dashboard, analytics and live system checks |
@@ -141,8 +145,7 @@ accountant confirm them before running a real payroll.
 
 Money rules: booking totals include 16% VAT; the platform fee
 (`PLATFORM_COMMISSION_RATE`, default 10%) is charged on the pre-VAT amount and
-stored on each payment. Online collection (M-PESA STK push, card gateway) and
-KRA eTIMS submission are not connected yet.
+stored on each payment. KRA eTIMS submission is not connected yet.
 
 Dealer subscriptions are billed on the 1st by `php artisan drivefleet:bill-subscriptions`
 (scheduled monthly; `php artisan dev` runs the scheduler for you, and production
@@ -187,6 +190,52 @@ Approving checks the car is still free, then moves the return time and adds the
 extra days to the booking and invoice. Refunds of payments record the method,
 reference and reason. Rentals 24 hours overdue are escalated to super admins.
 
+### Online payments and payouts
+
+Customers pay from Billing, My Rentals or Live Trip with **Pay now**:
+
+- **M-PESA:** an STK prompt goes to their phone (Safaricom Daraja, "Lipa na
+  M-PESA Online"). They enter their PIN and the page updates on its own. Dealer
+  staff can send the prompt to the customer's phone from **Record payment**.
+- **Card:** a hosted Paystack checkout; DriveFleet never sees card details. The
+  customer returns to Billing, which shows how it went.
+
+Money collected online goes to DriveFleet's shortcode or Paystack account and
+reaches the dealer in the next payout, less the platform fee, like other
+non-cash payments.
+
+Each attempt is an `OnlinePayment`. It settles exactly once, from whichever
+comes first: the provider's callback or webhook, the customer's browser checking
+in, or `php artisan drivefleet:reconcile-payments`, which runs every minute and
+expires prompts left unanswered for 5 minutes (card checkouts after 60).
+Success records an ordinary payment with the M-PESA receipt or card transaction
+id, so invoices, receipts, commission and payouts work unchanged. If staff
+already typed that M-PESA code in by hand it isn't counted twice. If money
+arrives after the balance was paid another way, it is still recorded and the
+dealer is told the booking is overpaid. If it arrives for a booking that was
+cancelled meanwhile, super admins are alerted and it appears under **Global
+Revenue → Online payments → Needs attention**.
+
+| Setting | Development default | To take real money |
+| --- | --- | --- |
+| `MPESA_DRIVER` | `simulate`: prompts are approved after 3 seconds; numbers ending `000` cancel, `111` fail for lack of funds | `daraja` plus `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`, `MPESA_SHORTCODE`, `MPESA_PASSKEY`, `MPESA_ENVIRONMENT` (`sandbox`/`production`) and a long random `MPESA_CALLBACK_TOKEN`. For a till, set `MPESA_TRANSACTION_TYPE=CustomerBuyGoodsOnline` and `MPESA_TILL_NUMBER`. |
+| `CARD_DRIVER` | `simulate`: a test checkout page with Pay and Decline | `paystack` plus `PAYSTACK_SECRET_KEY` (`sk_test_…` or `sk_live_…`). Set the dashboard webhook URL to `APP_URL/webhooks/paystack`. |
+
+Daraja doesn't sign callbacks, so results are accepted only at
+`APP_URL/webhooks/mpesa/{MPESA_CALLBACK_TOKEN}`. It must be reachable over HTTPS
+(use a tunnel such as ngrok to try the sandbox locally). Paystack webhooks are
+checked against their HMAC signature, then re-verified with Paystack's API. The
+simulators keep their state in the cache, so use any store but `array`; the admin
+Integrations page shows which mode each provider is in.
+
+**Payout details:** dealer managers set a bank account or M-PESA
+phone/paybill/till under Plan & Compliance → Payouts. Changing them needs the
+manager's password, is audited, and is announced to every manager at the
+dealership and to super admins. Other staff see the numbers masked. For 48
+hours after a change, the Payouts screen warns admins to confirm with the dealer
+before sending, and marking that payout paid needs a tick to say they did. Each
+paid payout keeps a copy of where the money went.
+
 ### Email, SMS and reminders
 
 Every notification appears in the app (the bell). It is also **emailed** and,
@@ -218,5 +267,5 @@ Live Trip shows the booking, dealer and payment details; there is no GPS
 provider, so it says live location is unavailable.
 
 Seed demo data with `php artisan migrate --seed` (all demo passwords are
-`password`). Run the backend tests with `php artisan test`; they use the
+`password`; three demo dealers have made-up payout details). Run the backend tests with `php artisan test`; they use the
 `drivefleet_test` database configured in `phpunit.xml`.

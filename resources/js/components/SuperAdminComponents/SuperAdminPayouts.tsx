@@ -1,13 +1,16 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { type Variants, motion } from "framer-motion";
 import { Table, Tr, Td } from "../Card";
 import Button from "../Button";
 import LoadState from "../LoadState";
+import Input from "../Input";
+import Modal from "../Modal";
 import {
   Wallet, Landmark, ArrowRightLeft, DollarSign,
-  Download, Search, CheckCircle2, Clock,
+  Download, Search, CheckCircle2, Clock, AlertTriangle,
 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
+import { fieldErrors } from "@/lib/errors";
 import { downloadCsv } from "@/lib/csv";
 import { useApi } from "@/lib/useApi";
 import { useDebounced } from "@/lib/useDebounced";
@@ -16,11 +19,60 @@ import type { FinanceSummary, Paginated, Payout } from "@/types/models";
 
 const itemVariants: Variants = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
 
+/** Confirm a transfer: shows where the money should go and asks for the transfer reference. */
+function MarkPaidForm({ payout, onDone }: { payout: Payout; onDone: (p: Payout) => void }) {
+  const [ref, setRef] = useState("");
+  const [checked, setChecked] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const d = payout.destination;
+  const needsCheck = !d || d.recently_changed;
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setErrors({});
+    try {
+      const { data } = await api<{ data: Payout }>(`/api/payouts/${payout.id}/mark-paid`, { method: "POST", body: { transfer_reference: ref.trim() } });
+      onDone(data);
+    } catch (err) {
+      setErrors(fieldErrors(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="p-6 space-y-4">
+      <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Send {ksh(payout.net)} to</p>
+        {d ? <p className="font-bold text-slate-900 dark:text-white [overflow-wrap:anywhere]">{d.summary}</p>
+          : <p className="font-bold text-rose-600 dark:text-rose-400">The dealer hasn't added payout details.</p>}
+      </div>
+      {d?.recently_changed && (
+        <p className="flex gap-2 text-sm text-amber-700 dark:text-amber-300 p-3 rounded-xl bg-amber-50 dark:bg-amber-500/10">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> These details changed {d.updated_at ? `on ${longDate(d.updated_at)}` : "recently"}. Call the dealer's manager on a number you already have to confirm before sending.
+        </p>
+      )}
+      <Input label="Transfer reference" value={ref} onChange={(e) => setRef(e.target.value)} placeholder="Bank or M-PESA transaction reference" required error={errors.transfer_reference ?? errors.payout} />
+      {needsCheck && (
+        <label className="flex items-start gap-2.5 text-sm text-slate-600 dark:text-slate-400">
+          <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} className="mt-0.5 accent-blue-600" />
+          <span>{d ? "I've confirmed the new details with the dealer." : "I've confirmed where to send this with the dealer."}</span>
+        </label>
+      )}
+      {errors.form && <p className="text-sm text-rose-600">{errors.form}</p>}
+      <Button type="submit" fullWidth loading={saving} disabled={needsCheck && !checked}>Mark {ksh(payout.net)} paid</Button>
+    </form>
+  );
+}
+
 export default function SuperAdminPayouts() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"" | "pending" | "paid">("");
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const [paying, setPaying] = useState<Payout | null>(null);
   const term = useDebounced(search.trim());
 
   const { data: summary, reload: reloadSummary } = useApi<FinanceSummary>("/api/finance/summary?months=1");
@@ -48,17 +100,11 @@ export default function SuperAdminPayouts() {
     }
   };
 
-  const markPaid = async (p: Payout) => {
-    const ref = window.prompt(`Bank transfer reference for ${ksh(p.net)} to ${p.dealer?.name}:`);
-    if (!ref?.trim()) return;
-    try {
-      const { data: updated } = await api<{ data: Payout }>(`/api/payouts/${p.id}/mark-paid`, { method: "POST", body: { transfer_reference: ref.trim() } });
-      setData((d) => d && { ...d, data: d.data.map((x) => (x.id === updated.id ? updated : x)) });
-      reloadSummary();
-      setMessage({ tone: "ok", text: `${updated.reference} marked paid.` });
-    } catch (err) {
-      fail(err);
-    }
+  const onPaid = (updated: Payout) => {
+    setData((d) => d && { ...d, data: d.data.map((x) => (x.id === updated.id ? updated : x)) });
+    setPaying(null);
+    reloadSummary();
+    setMessage({ tone: "ok", text: `${updated.reference} marked paid.` });
   };
 
   const exportCsv = () =>
@@ -137,6 +183,12 @@ export default function SuperAdminPayouts() {
                 <Td>
                   <span className="font-mono text-[10px] font-black text-slate-400 block mb-0.5">{po.reference}</span>
                   <span className="font-bold text-slate-900 dark:text-white text-sm">{po.dealer?.name}</span>
+                  {po.status === "pending" && (po.destination
+                    ? <span className={`block text-[10px] font-bold mt-0.5 ${po.destination.recently_changed ? "text-amber-600 dark:text-amber-400" : "text-slate-400"}`}>
+                        {po.destination.recently_changed && <AlertTriangle className="inline w-3 h-3 mr-0.5 -mt-0.5" />}{po.destination.summary}
+                      </span>
+                    : <span className="block text-[10px] font-bold text-rose-500 mt-0.5">No payout details</span>)}
+                  {po.paid_to && <span className="block text-[10px] text-slate-400 mt-0.5">Sent to {po.paid_to}</span>}
                 </Td>
                 <Td className="text-xs font-medium text-slate-600 dark:text-slate-400">
                   {longDate(po.period_start)} – {longDate(po.period_end)}
@@ -162,7 +214,7 @@ export default function SuperAdminPayouts() {
                 </Td>
                 <Td className="text-right">
                   {po.status === "pending" ? (
-                    <Button size="sm" className="text-[10px] uppercase tracking-widest py-1.5 px-3" onClick={() => markPaid(po)}>Mark paid</Button>
+                    <Button size="sm" className="text-[10px] uppercase tracking-widest py-1.5 px-3" onClick={() => setPaying(po)}>Mark paid</Button>
                   ) : (
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{po.paid_at ? longDate(po.paid_at) : "Done"}</span>
                   )}
@@ -172,6 +224,9 @@ export default function SuperAdminPayouts() {
           </Table>
         </LoadState>
       </motion.div>
+      <Modal open={!!paying} onClose={() => setPaying(null)} title="Mark payout paid" width="max-w-md" subtitle={paying && <>{paying.reference} · {paying.dealer?.name}</>}>
+        {paying && <MarkPaidForm key={paying.id} payout={paying} onDone={onPaid} />}
+      </Modal>
     </motion.div>
   );
 }

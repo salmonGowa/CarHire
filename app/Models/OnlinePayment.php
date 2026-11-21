@@ -58,6 +58,23 @@ class OnlinePayment extends Model
         return $this->belongsTo(Invoice::class);
     }
 
+    public function dealer(): BelongsTo
+    {
+        return $this->belongsTo(Dealer::class);
+    }
+
+    /** Money arrived but couldn't be put on the invoice: a person has to sort it out. */
+    public function needsAttention(): bool
+    {
+        return $this->status === self::SUCCEEDED && $this->payment_id === null;
+    }
+
+    /** @param  Builder<OnlinePayment>  $query */
+    public function scopeNeedingAttention(Builder $query): void
+    {
+        $query->where('status', self::SUCCEEDED)->whereNull('payment_id');
+    }
+
     public function payment(): BelongsTo
     {
         return $this->belongsTo(Payment::class);

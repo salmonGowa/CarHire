@@ -186,6 +186,11 @@ class OnlinePaymentsTest extends TestCase
         $this->assertSame(0, Payment::count());
         $this->assertStringContainsString("couldn't be added to the invoice", OnlinePayment::find($id)->result_desc);
         Notification::assertSentTo($admin, PlatformNotification::class, fn ($n) => $n->title === 'Online payment needs attention');
+
+        $this->actingAs($admin)->getJson('/api/admin/online-payments?status=attention')
+            ->assertJsonPath('summary.attention', 1)->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.needs_attention', true)->assertJsonPath('data.0.booking.reference', $this->booking->reference);
+        $this->actingAs($this->manager)->getJson('/api/admin/online-payments')->assertForbidden();
     }
 
     public function test_an_mpesa_code_staff_already_typed_in_is_not_counted_twice(): void

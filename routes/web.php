@@ -192,6 +192,7 @@ Route::prefix('api')->middleware('auth')->group(function () {
 
     // Platform administration.
     Route::prefix('admin')->middleware('role:superadmin')->group(function () {
+        Route::get('online-payments', [Admin\OnlinePaymentController::class, 'index']);
         Route::get('dealers', [Admin\DealerAdminController::class, 'index']);
         Route::post('dealers', [Admin\DealerAdminController::class, 'store']);
         Route::get('dealers/{dealer}', [Admin\DealerAdminController::class, 'show']);

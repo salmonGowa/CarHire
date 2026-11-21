@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use App\Notifications\PlatformNotification;
 use Illuminate\Support\Facades\Notification;
@@ -30,6 +31,12 @@ class Notifier
         if ($dealerId) {
             $this->send(User::where('dealer_id', $dealerId)->whereNull('disabled_at')->get(), new PlatformNotification($title, $body, $link, $tone, $category));
         }
+    }
+
+    /** Every active super admin (platform problems that need a person). */
+    public function superAdmins(string $title, string $body, ?string $link = null, string $tone = 'warning', string $category = 'account'): void
+    {
+        $this->send(User::where('role', UserRole::SuperAdmin)->whereNull('disabled_at')->get(), new PlatformNotification($title, $body, $link, $tone, $category));
     }
 
     /** A text to someone without an account (e.g. a walk-in customer's phone). */

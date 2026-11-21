@@ -31,7 +31,7 @@ const itemVariants: Variants = { hidden: { opacity: 0, y: 20 }, show: { opacity:
 export default function SuperAdminIntegrations() {
   const { data, loading, error, reload } = useApi<{ data: Integration[] }>("/api/admin/integrations");
   const rows = data?.data ?? [];
-  const live = ["database", "storage", "scheduler", "queue", "mail", "sms", "maps"];
+  const live = ["database", "storage", "scheduler", "queue", "mail", "sms", "mpesa", "card", "maps"];
   const groups = [
     { title: "Running the platform", sub: "Checked live each time this page loads", items: rows.filter((r) => live.includes(r.id)) },
     { title: "Third-party services", sub: "Not built yet. Staff record these by hand for now", items: rows.filter((r) => !live.includes(r.id)) },

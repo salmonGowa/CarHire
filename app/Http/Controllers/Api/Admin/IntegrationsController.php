@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\OnlinePayment;
 use App\Services\PlatformAlerts;
 use App\Services\Sms\LogSmsSender;
 use App\Services\Sms\SmsSender;
@@ -51,6 +52,8 @@ class IntegrationsController extends Controller
                     : "Sending with \"{$mailer}\" from ".config('mail.from.address').'.'),
             $this->sms(),
             $this->queue(),
+            $this->mpesa(),
+            $this->card(),
             $this->row('maps', 'Google Maps', 'Location', config('drivefleet.google_maps_key_set') ? 'configured' : 'not_connected',
                 config('drivefleet.google_maps_key_set') ? 'A browser key is set and used by the Live Tracking map.' : 'No key set (VITE_GOOGLE_MAPS_API_KEY). The Live Tracking map will be blank.'),
         ];
@@ -60,8 +63,6 @@ class IntegrationsController extends Controller
     private function services(): array
     {
         return [
-            $this->row('mpesa', 'M-PESA (Daraja)', 'Payments', 'not_connected', 'STK push and C2B confirmations are not built. Staff record M-PESA payments by hand with the transaction code.'),
-            $this->row('card', 'Card payments', 'Payments', 'not_connected', 'No card gateway is connected. Card payments are recorded by hand.'),
             $this->row('etims', 'KRA eTIMS', 'Tax', 'not_connected', 'Invoices are numbered and include VAT but are not submitted to KRA.'),
             $this->row('gps', 'GPS telematics', 'Location', 'not_connected', 'No tracking provider. Live Tracking shows demo positions only.'),
         ];
@@ -79,6 +80,55 @@ class IntegrationsController extends Controller
 
         return $this->row('sms', 'SMS', 'Communications', $missing ? 'error' : 'configured',
             $missing ? 'SMS_DRIVER is africastalking but the username or API key is missing.' : "Sending with {$sender->name()}.");
+    }
+
+    /** @return array<string, mixed> */
+    private function mpesa(): array
+    {
+        if (config('services.mpesa.driver') !== 'daraja') {
+            return $this->row('mpesa', 'M-PESA (Daraja)', 'Payments', 'attention',
+                'Simulated: Pay now pretends to send prompts and no money moves. Set MPESA_DRIVER=daraja with your Daraja keys, shortcode, passkey and a callback token.');
+        }
+        $missing = array_keys(array_filter([
+            'MPESA_CONSUMER_KEY' => config('services.mpesa.consumer_key'), 'MPESA_CONSUMER_SECRET' => config('services.mpesa.consumer_secret'),
+            'MPESA_SHORTCODE' => config('services.mpesa.shortcode'), 'MPESA_PASSKEY' => config('services.mpesa.passkey'),
+            'MPESA_CALLBACK_TOKEN' => config('services.mpesa.callback_token'),
+        ], fn ($v) => blank($v)));
+        if ($missing) {
+            return $this->row('mpesa', 'M-PESA (Daraja)', 'Payments', 'error', 'MPESA_DRIVER is daraja but '.implode(', ', $missing).(count($missing) === 1 ? ' is' : ' are').' missing.');
+        }
+
+        return $this->row('mpesa', 'M-PESA (Daraja)', 'Payments', 'configured',
+            'STK push on '.config('services.mpesa.environment').' shortcode '.config('services.mpesa.shortcode').'. '.$this->recent('mpesa'));
+    }
+
+    /** @return array<string, mixed> */
+    private function card(): array
+    {
+        if (config('services.card.driver') !== 'paystack') {
+            return $this->row('card', 'Card payments (Paystack)', 'Payments', 'attention',
+                'Simulated: card checkout shows a test page and no money moves. Set CARD_DRIVER=paystack with PAYSTACK_SECRET_KEY, and point the Paystack webhook at '.url('/webhooks/paystack').'.');
+        }
+        if (blank(config('services.paystack.secret_key'))) {
+            return $this->row('card', 'Card payments (Paystack)', 'Payments', 'error', 'CARD_DRIVER is paystack but PAYSTACK_SECRET_KEY is missing.');
+        }
+        $live = str_starts_with((string) config('services.paystack.secret_key'), 'sk_live_');
+
+        return $this->row('card', 'Card payments (Paystack)', 'Payments', 'configured',
+            ($live ? 'Live keys' : 'Test keys').', charging in '.config('services.paystack.currency').'. '.$this->recent('card'));
+    }
+
+    /** "3 paid, 1 failed in the last 24 hours" for a provider. */
+    private function recent(string $provider): string
+    {
+        $counts = OnlinePayment::where('provider', $provider)->where('created_at', '>=', now()->subDay())
+            ->selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status');
+        if ($counts->isEmpty()) {
+            return 'No payments in the last 24 hours.';
+        }
+        $failed = ($counts['failed'] ?? 0) + ($counts['cancelled'] ?? 0) + ($counts['expired'] ?? 0);
+
+        return ($counts['succeeded'] ?? 0)." paid, {$failed} not completed".(($counts['pending'] ?? 0) ? ", {$counts['pending']} waiting" : '').' in the last 24 hours.';
     }
 
     /** @return array<string, mixed> */

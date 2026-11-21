@@ -8,9 +8,11 @@ import type { Booking, Paginated, Stats } from "@/types/models";
 import LoadState from "../LoadState";
 import { type Variants, motion, AnimatePresence } from "framer-motion";
 import Button from "../Button";
+import PayNowModal, { type PayTarget } from "../PayNowModal";
+import type { Profile } from "@/types/account";
 import { 
   Car, Calendar, DollarSign, Star, ChevronRight, 
-  RefreshCw, CheckCircle2, Clock, XCircle, MapPin, Search, KeyRound
+  RefreshCw, CheckCircle2, Clock, XCircle, MapPin, Search, KeyRound, CreditCard
 } from "lucide-react";
 
 const containerVariants: Variants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } };
@@ -33,6 +35,8 @@ export default function CustomerRentals() {
   const [filter, setFilter] = useState<Filter>("All");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [message, setMessage] = useState("");
+  const [paying, setPaying] = useState<PayTarget | null>(null);
+  const { data: profile } = useApi<{ data: Profile }>("/api/profile");
   const { data, setData, loading, error, reload } = useApi<Paginated<Booking>>("/api/bookings?per_page=200");
   const { data: stats, reload: reloadStats } = useApi<Stats>("/api/stats");
 
@@ -269,7 +273,13 @@ export default function CustomerRentals() {
                            </div>
                         )}
                         
-                        <div className="flex w-full sm:w-auto gap-3">
+                        <div className="flex w-full sm:w-auto gap-3 flex-wrap">
+                          {r.invoice && r.invoice.balance > 0 && r.invoice.status !== "void" && ["confirmed", "active", "completed"].includes(r.status) && (
+                            <Button variant="success" onClick={() => setPaying({ bookingId: r.id, reference: r.reference, balance: r.invoice!.balance, phone: profile?.data.preferences.mpesa_phone ?? profile?.data.phone, allowCard: true })}
+                              className="flex-1 sm:flex-none text-xs px-4 flex items-center justify-center gap-2">
+                              <CreditCard className="w-4 h-4" /> Pay {ksh(r.invoice.balance)}
+                            </Button>
+                          )}
                           {r.allowed_transitions.includes("cancelled") && (
                             <Button variant="danger" onClick={() => cancel(r)} className="flex-1 sm:flex-none text-xs px-4 flex items-center justify-center gap-2">
                               <XCircle className="w-4 h-4" /> Cancel booking
@@ -300,6 +310,7 @@ export default function CustomerRentals() {
            </motion.div>
         )}
       </motion.div>
+      <PayNowModal target={paying} onClose={() => setPaying(null)} onPaid={() => { reload(); reloadStats(); }} />
     </motion.div>
   );
 }

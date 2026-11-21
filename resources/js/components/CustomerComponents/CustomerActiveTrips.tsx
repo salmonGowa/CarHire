@@ -8,13 +8,14 @@ import {
 import LoadState from "../LoadState";
 import Button from "../Button";
 import Modal from "../Modal";
+import PayNowModal from "../PayNowModal";
 import { api } from "@/lib/api";
 import { errorMessage, fieldErrors } from "@/lib/errors";
 import { useApi } from "@/lib/useApi";
 import { useNow, formatDuration } from "@/lib/useNow";
 import { mapsLink, tripPhase } from "@/lib/trip";
 import { CHARGE_LABEL, dateTime, ksh, quote } from "@/lib/format";
-import type { CurrentTrip } from "@/types/account";
+import type { CurrentTrip, Profile } from "@/types/account";
 import type { Booking } from "@/types/models";
 
 const itemVariants: Variants = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
@@ -82,6 +83,8 @@ export default function CustomerActiveTrip() {
   const now = useNow();
   const [message, setMessage] = useState("");
   const [extending, setExtending] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const { data: profile } = useApi<{ data: Profile }>("/api/profile");
 
   if (!data) return <LoadState loading={loading} error={error} onRetry={reload} />;
   if (!data.data) {
@@ -226,7 +229,12 @@ export default function CustomerActiveTrip() {
             <p className="text-2xl font-black text-slate-900 dark:text-white">{ksh(b.total)}</p>
             {b.invoice ? (
               balance > 0
-                ? <p className="text-sm font-bold text-amber-600">{ksh(balance)} still to pay (invoice {b.invoice.number})</p>
+                ? (
+                  <>
+                    <p className="text-sm font-bold text-amber-600">{ksh(balance)} still to pay (invoice {b.invoice.number})</p>
+                    <button onClick={() => setPaying(true)} className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-widest">Pay {ksh(balance)} now</button>
+                  </>
+                )
                 : <p className="text-sm font-bold text-emerald-600 flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4" /> Paid in full</p>
             ) : <p className="text-sm text-slate-500">You'll get an invoice once the dealer confirms.</p>}
             {charges.map((c) => (
@@ -258,6 +266,8 @@ export default function CustomerActiveTrip() {
           </motion.div>
         </div>
       </div>
+      <PayNowModal onClose={() => setPaying(false)} onPaid={reload}
+        target={paying && b.invoice ? { bookingId: b.id, reference: b.reference, balance, phone: profile?.data.preferences.mpesa_phone ?? profile?.data.phone, allowCard: true } : null} />
       <Modal open={extending} onClose={() => setExtending(false)} title="Extend your rental" subtitle={`${b.reference} · ${vehicle?.model ?? ""}`} width="max-w-md">
         {extending && <ExtendForm booking={b} onDone={() => { setExtending(false); reload(); }} />}
       </Modal>

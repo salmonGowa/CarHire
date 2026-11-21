@@ -10,6 +10,7 @@ import LoadState from "../LoadState";
 import BookingStatusPill from "../StatusPill";
 import InvoiceStatusPill from "../InvoiceStatusPill";
 import RecordPaymentModal, { type PaymentTarget } from "../RecordPaymentModal";
+import PayNowModal, { type PayTarget } from "../PayNowModal";
 import { ExtensionModal, HandoverModal, ReturnModal, SettleDepositModal } from "./RentalModals";
 import { api, ApiError } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
@@ -39,6 +40,7 @@ export default function DealerManageBooking() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [actionError, setActionError] = useState("");
   const [paying, setPaying] = useState<PaymentTarget | null>(null);
+  const [prompting, setPrompting] = useState<PayTarget | null>(null);
   // Handover and return go through forms that record the car's condition and the deposit.
   const [dialog, setDialog] = useState<{ kind: "handover" | "return" | "deposit" | "extension"; booking: Booking } | null>(null);
 
@@ -257,7 +259,13 @@ export default function DealerManageBooking() {
         </LoadState>
       </div>
 
-      <RecordPaymentModal key={paying?.bookingId ?? "none"} target={paying} onClose={() => setPaying(null)} onRecorded={onRecorded} />
+      <RecordPaymentModal key={paying?.bookingId ?? "none"} target={paying} onClose={() => setPaying(null)} onRecorded={onRecorded}
+        onPrompt={() => {
+          const b = data?.data.find((x) => x.id === paying?.bookingId);
+          setPaying(null);
+          if (b?.invoice) setPrompting({ bookingId: b.id, reference: b.reference, balance: b.invoice.balance, phone: b.customer.phone, allowCard: false, forCustomer: b.customer.name });
+        }} />
+      <PayNowModal target={prompting} onClose={() => setPrompting(null)} onPaid={onRecorded} />
       <HandoverModal booking={dialog?.kind === "handover" ? dialog.booking : null} onClose={() => setDialog(null)} onDone={onDialogDone} />
       <ReturnModal booking={dialog?.kind === "return" ? dialog.booking : null} onClose={() => setDialog(null)} onDone={onDialogDone} />
       <SettleDepositModal booking={dialog?.kind === "deposit" ? dialog.booking : null} onClose={() => setDialog(null)} onDone={onDialogDone} />

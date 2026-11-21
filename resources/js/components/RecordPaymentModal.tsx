@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X } from "lucide-react";
+import { Smartphone, X } from "lucide-react";
 import Button from "./Button";
 import Input from "./Input";
 import { api, ApiError } from "@/lib/api";
@@ -19,10 +19,12 @@ const METHODS: ReceivedMethod[] = ["mpesa", "cash", "card", "bank"];
  * Staff record money they have received for a booking. The server checks the
  * amount against the invoice balance and rejects reused transaction codes.
  */
-export default function RecordPaymentModal({ target, onClose, onRecorded }: {
+export default function RecordPaymentModal({ target, onClose, onRecorded, onPrompt }: {
   target: PaymentTarget | null;
   onClose: () => void;
   onRecorded: (payment: Payment) => void;
+  /** Offer "send an M-PESA prompt to the customer" instead of recording money already received. */
+  onPrompt?: () => void;
 }) {
   const [amount, setAmount] = useState(target ? String(target.balance) : "");
   const [method, setMethod] = useState<ReceivedMethod>("mpesa");
@@ -107,6 +109,11 @@ export default function RecordPaymentModal({ target, onClose, onRecorded }: {
               {errors.form && <p className="text-sm text-rose-600 dark:text-rose-400">{errors.form}</p>}
               <Button type="submit" fullWidth loading={saving}>Record {amount ? ksh(Number(amount)) : "payment"}</Button>
               <p className="text-[11px] text-center text-slate-400">Records money already received. It does not charge the customer.</p>
+              {onPrompt && (
+                <button type="button" onClick={onPrompt} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-sm font-bold hover:bg-emerald-50 dark:hover:bg-emerald-500/10">
+                  <Smartphone className="w-4 h-4" /> Not paid yet? Send an M-PESA prompt
+                </button>
+              )}
             </form>
           </motion.div>
         </div>

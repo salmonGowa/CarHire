@@ -106,7 +106,7 @@ export default function CustomerBilling() {
                 {recentPayments.slice(0, 3).map((p) => (
                   <li key={p.id} className="flex items-center justify-between gap-3 text-xs">
                     <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300 min-w-0">
-                      {p.method === "mpesa" ? <Smartphone className="w-4 h-4 text-emerald-500 shrink-0" /> : <Banknote className="w-4 h-4 text-slate-400 shrink-0" />}
+                      {p.method === "mpesa" ? <Smartphone className="w-4 h-4 text-emerald-500 shrink-0" /> : p.method === "card" ? <CreditCard className="w-4 h-4 text-blue-500 shrink-0" /> : <Banknote className="w-4 h-4 text-slate-400 shrink-0" />}
                       <span className="truncate">{longDate(p.paid_at)} · {PAYMENT_LABEL[p.method]}{p.status === "refunded" ? " (refunded)" : ""}</span>
                     </span>
                     <span className={`font-bold text-slate-900 dark:text-white ${p.status === "refunded" ? "line-through opacity-60" : ""}`}>{ksh(p.amount)}</span>

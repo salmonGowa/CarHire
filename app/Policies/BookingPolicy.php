@@ -48,6 +48,13 @@ class BookingPolicy
             && in_array($booking->status, [BookingStatus::Confirmed, BookingStatus::Active, BookingStatus::Completed], true);
     }
 
+    /** The customer paying their own booking online (M-PESA prompt or card). */
+    public function payOnline(User $user, Booking $booking): bool
+    {
+        return $booking->customer_id === $user->id
+            && in_array($booking->status, [BookingStatus::Confirmed, BookingStatus::Active, BookingStatus::Completed], true);
+    }
+
     /** Handover, return, deposits and extension decisions: the dealer's staff (or a super admin). */
     public function operate(User $user, Booking $booking): bool
     {

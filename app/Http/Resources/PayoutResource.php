@@ -26,6 +26,10 @@ class PayoutResource extends JsonResource
             'status' => $this->status->value,
             'paid_at' => $this->paid_at?->toIso8601String(),
             'transfer_reference' => $this->transfer_reference,
+            // Where the money went when it was marked paid.
+            'paid_to' => $this->paid_to,
+            // Where to send it now: full details for DriveFleet's admins, masked for the dealer's own staff.
+            'destination' => $this->whenLoaded('dealer', fn () => $this->dealer->payoutDetails(masked: ! $request->user()?->isSuperAdmin())),
             'created_at' => $this->created_at->toIso8601String(),
         ];
     }

@@ -207,6 +207,7 @@ class FinanceService
             'status' => PayoutStatus::Paid,
             'paid_at' => now(),
             'transfer_reference' => $transferReference,
+            'paid_to' => $payout->dealer?->payoutDestination(),
         ]);
 
         return $payout;

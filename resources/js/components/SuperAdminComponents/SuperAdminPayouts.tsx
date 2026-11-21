@@ -110,8 +110,9 @@ export default function SuperAdminPayouts() {
   const exportCsv = () =>
     downloadCsv(
       `payouts-${new Date().toISOString().slice(0, 10)}.csv`,
-      ["Reference", "Dealer", "Period start", "Period end", "Payments", "Collected", "Cash at dealer", "Commission", "Net", "Status", "Paid on", "Transfer ref"],
-      payouts.map((p) => [p.reference, p.dealer?.name, p.period_start, p.period_end, p.payment_count, p.gross_collected, p.cash_collected, p.commission, p.net, p.status, p.paid_at?.slice(0, 10), p.transfer_reference]),
+      ["Reference", "Dealer", "Period start", "Period end", "Payments", "Collected", "Cash at dealer", "Commission", "Net", "Status", "Paid on", "Transfer ref", "Paid to / send to"],
+      payouts.map((p) => [p.reference, p.dealer?.name, p.period_start, p.period_end, p.payment_count, p.gross_collected, p.cash_collected, p.commission, p.net, p.status, p.paid_at?.slice(0, 10), p.transfer_reference,
+        p.paid_to ?? p.destination?.summary ?? "no payout details"]),
     );
 
   return (

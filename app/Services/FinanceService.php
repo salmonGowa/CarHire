@@ -75,11 +75,14 @@ class FinanceService
     /**
      * Record money received against a booking (cash, M-PESA code, card or bank transfer).
      *
+     * Online payments pass `$allowOverpayment`: the money has already arrived, so
+     * it is recorded even if staff took a payment by hand meanwhile.
+     *
      * @param  array{amount: int, method: string, transaction_code?: string|null, paid_at?: string|null, notes?: string|null}  $data
      */
-    public function recordPayment(User $actor, Booking $booking, array $data): Payment
+    public function recordPayment(?User $actor, Booking $booking, array $data, bool $allowOverpayment = false): Payment
     {
-        return DB::transaction(function () use ($actor, $booking, $data) {
+        return DB::transaction(function () use ($actor, $booking, $data, $allowOverpayment) {
             if ($booking->status === BookingStatus::Cancelled || $booking->status === BookingStatus::Pending) {
                 throw ValidationException::withMessages(['amount' => 'Payments can only be recorded for confirmed, active or completed bookings.']);
             }
@@ -87,7 +90,7 @@ class FinanceService
             $invoice = $this->issueInvoice($booking);
             $invoice = Invoice::whereKey($invoice->id)->lockForUpdate()->first();
 
-            if ($data['amount'] > $invoice->balance()) {
+            if (! $allowOverpayment && $data['amount'] > $invoice->balance()) {
                 throw ValidationException::withMessages([
                     'amount' => 'That is more than the balance due ('.number_format($invoice->balance()).').',
                 ]);
@@ -104,7 +107,7 @@ class FinanceService
                 'transaction_code' => $data['transaction_code'] ?? null,
                 'status' => PaymentStatus::Completed,
                 'paid_at' => isset($data['paid_at']) ? Carbon::parse($data['paid_at']) : now(),
-                'recorded_by' => $actor->id,
+                'recorded_by' => $actor?->id,
                 'notes' => $data['notes'] ?? null,
             ]);
 

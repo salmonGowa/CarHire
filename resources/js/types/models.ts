@@ -190,7 +190,26 @@ export interface Payout {
   status: "pending" | "paid";
   paid_at: string | null;
   transfer_reference: string | null;
+  /** Where the money went, as it was when marked paid. */
+  paid_to: string | null;
+  /** Where to send it now (masked for dealer staff). */
+  destination?: PayoutDetails | null;
   created_at: string;
+}
+
+export interface PayoutDetails {
+  method: "bank" | "mpesa";
+  bank_name: string | null;
+  bank_branch: string | null;
+  account_name: string;
+  account_number: string | null;
+  mpesa_type: "phone" | "paybill" | "till" | null;
+  mpesa_number: string | null;
+  mpesa_account: string | null;
+  summary: string;
+  updated_at: string | null;
+  /** Changed in the last 48 hours: check before sending money. */
+  recently_changed: boolean;
 }
 
 interface MoneyTotals {

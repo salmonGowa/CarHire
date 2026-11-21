@@ -1,13 +1,13 @@
-import { useState } from "react";
+import { useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { type Variants, motion, AnimatePresence } from "framer-motion";
-import { AlertTriangle, CheckCircle2, CreditCard, Eye, FileCheck, Fuel, Gauge, Lock, ShieldCheck, Timer, Upload, X } from "lucide-react";
+import { AlertTriangle, Banknote, CheckCircle2, CreditCard, Eye, FileCheck, Fuel, Gauge, Landmark, Lock, ShieldCheck, Smartphone, Timer, Upload, X } from "lucide-react";
 import LoadState from "../LoadState";
 import { api } from "@/lib/api";
 import { fieldErrors } from "@/lib/errors";
 import { useApi } from "@/lib/useApi";
 import { PAYMENT_LABEL, ksh, longDate } from "@/lib/format";
 import { DOC_STATE_LABEL, DOC_STATE_STYLE, NEEDS_UPLOAD } from "@/lib/compliance";
-import type { ReceivedMethod, RentalPolicy } from "@/types/models";
+import type { PayoutDetails, ReceivedMethod, RentalPolicy } from "@/types/models";
 import type { DealerDocument, MissingDocument, SubscriptionCharge, SubscriptionPlan } from "@/types/platform";
 
 interface SubscriptionData {
@@ -341,21 +341,147 @@ function PolicyForm({ policy, canEdit, onSaved }: { policy: RentalPolicy; canEdi
   );
 }
 
+const Field = ({ label, children, error, hint }: { label: string; children: ReactNode; error?: string; hint?: string }) => (
+  <label className="block">
+    <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{label}</span>
+    {children}
+    {hint && <span className="block text-[11px] text-slate-400 mt-1">{hint}</span>}
+    {error && <span className="block text-xs text-rose-500 mt-1">{error}</span>}
+  </label>
+);
+
+function PayoutTab() {
+  const { data, loading, error, reload } = useApi<{ data: PayoutDetails | null; can_edit: boolean }>("/api/dealer-payout-details");
+  const [editing, setEditing] = useState(false);
+  if (!data) return <LoadState loading={loading} error={error} onRetry={reload} />;
+  const d = data.data;
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className={`${card} p-6 lg:col-span-2`}>
+        <div className="flex items-start justify-between gap-4 mb-5">
+          <div>
+            <h3 className="font-black text-slate-900 dark:text-white">Where your payouts go</h3>
+            <p className="text-xs text-slate-500 mt-0.5">DriveFleet collects online payments and sends you the total, less the platform fee, each payout cycle.</p>
+          </div>
+          {!data.can_edit && <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-slate-400 shrink-0"><Lock className="w-3 h-3" /> Managers only</span>}
+        </div>
+        {editing ? (
+          <PayoutForm current={d} onCancel={() => setEditing(false)} onSaved={() => { setEditing(false); reload(); }} />
+        ) : d ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
+              <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-500/10 text-blue-600">{d.method === "bank" ? <Landmark className="w-5 h-5" /> : <Smartphone className="w-5 h-5" />}</div>
+              <div className="min-w-0">
+                <p className="font-bold text-slate-900 dark:text-white [overflow-wrap:anywhere]">{d.summary}</p>
+                {d.updated_at && <p className="text-xs text-slate-500">Last changed {longDate(d.updated_at)}</p>}
+              </div>
+            </div>
+            {d.recently_changed && <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5" /> Changed in the last 48 hours: DriveFleet double-checks before the next payout.</p>}
+            {data.can_edit && <button onClick={() => setEditing(true)} className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-700 dark:text-slate-300">Change payout details</button>}
+          </div>
+        ) : (
+          <div className="text-center py-8 space-y-3">
+            <Banknote className="w-10 h-10 mx-auto text-slate-300" />
+            <p className="text-sm text-slate-500">No payout details yet. Add a bank account or M-PESA number so payouts can reach you.</p>
+            {data.can_edit && <button onClick={() => setEditing(true)} className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold">Add payout details</button>}
+          </div>
+        )}
+      </div>
+      <div className={`${card} p-6 space-y-3 h-fit text-sm text-slate-600 dark:text-slate-400`}>
+        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Keeping payouts safe</p>
+        <p>Changing these needs a manager's password. Every manager at your dealership and DriveFleet's team are told straight away.</p>
+        <p>If you get a "payout details changed" message you didn't expect, contact DriveFleet support before the next payout.</p>
+      </div>
+    </div>
+  );
+}
+
+function PayoutForm({ current, onCancel, onSaved }: { current: PayoutDetails | null; onCancel: () => void; onSaved: () => void }) {
+  const [method, setMethod] = useState<"bank" | "mpesa">(current?.method ?? "bank");
+  const [mpesaType, setMpesaType] = useState<"phone" | "paybill" | "till">(current?.mpesa_type ?? "paybill");
+  const [f, setF] = useState({ account_name: current?.account_name ?? "", bank_name: current?.bank_name ?? "", bank_branch: current?.bank_branch ?? "", account_number: current?.account_number ?? "", mpesa_number: current?.mpesa_number?.replace(/^\+254/, "0") ?? "", mpesa_account: current?.mpesa_account ?? "", password: "" });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const set = (k: keyof typeof f) => (e: ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setErrors({});
+    try {
+      await api("/api/dealer-payout-details", { method: "PUT", body: { ...f, method, mpesa_type: method === "mpesa" ? mpesaType : null } });
+      onSaved();
+    } catch (err) {
+      setErrors(fieldErrors(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const tab = (active: boolean) => `flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold border ${active
+    ? "bg-blue-50 dark:bg-blue-500/10 border-blue-300 dark:border-blue-500/40 text-blue-600 dark:text-blue-400"
+    : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500"}`;
+
+  return (
+    <form onSubmit={save} className="space-y-5">
+      <div role="group" aria-label="Payout method" className="flex gap-2">
+        <button type="button" aria-pressed={method === "bank"} onClick={() => setMethod("bank")} className={tab(method === "bank")}><Landmark className="w-4 h-4" /> Bank account</button>
+        <button type="button" aria-pressed={method === "mpesa"} onClick={() => setMethod("mpesa")} className={tab(method === "mpesa")}><Smartphone className="w-4 h-4" /> M-PESA</button>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <Field label="Account name" error={errors.account_name} hint="Exactly as registered with the bank or Safaricom.">
+          <input value={f.account_name} onChange={set("account_name")} className={inputClass} required aria-label="Account name" />
+        </Field>
+        {method === "bank" ? (
+          <>
+            <Field label="Bank" error={errors.bank_name}><input value={f.bank_name} onChange={set("bank_name")} placeholder="e.g. Equity Bank" className={inputClass} required aria-label="Bank" /></Field>
+            <Field label="Branch" error={errors.bank_branch}><input value={f.bank_branch} onChange={set("bank_branch")} className={inputClass} aria-label="Branch" /></Field>
+            <Field label="Account number" error={errors.account_number}>
+              <input value={f.account_number} onChange={set("account_number")} inputMode="numeric" className={inputClass} required aria-label="Account number" />
+            </Field>
+          </>
+        ) : (
+          <>
+            <Field label="Type">
+              <select value={mpesaType} onChange={(e) => setMpesaType(e.target.value as typeof mpesaType)} className={inputClass} aria-label="M-PESA type">
+                <option value="paybill">Paybill</option><option value="till">Till (Buy Goods)</option><option value="phone">Phone number</option>
+              </select>
+            </Field>
+            <Field label={mpesaType === "phone" ? "Phone number" : mpesaType === "paybill" ? "Paybill number" : "Till number"} error={errors.mpesa_number}>
+              <input value={f.mpesa_number} onChange={set("mpesa_number")} inputMode="numeric" className={inputClass} required aria-label="M-PESA number" />
+            </Field>
+            {mpesaType === "paybill" && <Field label="Paybill account number" error={errors.mpesa_account}><input value={f.mpesa_account} onChange={set("mpesa_account")} className={inputClass} required aria-label="Paybill account number" /></Field>}
+          </>
+        )}
+      </div>
+      <Field label="Your password" error={errors.password} hint="To confirm it's you. Everyone is told when payout details change.">
+        <input type="password" value={f.password} onChange={set("password")} autoComplete="current-password" className={`${inputClass} sm:max-w-xs`} required aria-label="Your password" />
+      </Field>
+      {errors.form && <p className="text-sm text-rose-600">{errors.form}</p>}
+      <div className="flex justify-end gap-3">
+        <button type="button" onClick={onCancel} className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300">Cancel</button>
+        <button type="submit" disabled={saving} className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold disabled:opacity-50">{saving ? "Saving…" : "Save payout details"}</button>
+      </div>
+    </form>
+  );
+}
+
 export default function DealerAccount() {
-  const [tab, setTab] = useState<"plan" | "policy" | "compliance">("plan");
+  const [tab, setTab] = useState<"plan" | "policy" | "payouts" | "compliance">("plan");
   return (
     <motion.div variants={{ show: { transition: { staggerChildren: 0.1 } } }} initial="hidden" animate="show" className="space-y-6 pb-10">
       <motion.div variants={itemVariants}>
         <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Plan & Compliance</h2>
-        <p className="text-sm text-slate-500 mt-1">Your DriveFleet subscription, your rental policy, and the licences and certificates we need on file.</p>
+        <p className="text-sm text-slate-500 mt-1">Your DriveFleet subscription, rental policy, where payouts go, and the documents we need on file.</p>
       </motion.div>
       <motion.div variants={itemVariants} className="flex gap-1 border-b border-slate-200 dark:border-slate-800">
-        {([["plan", "Plan & Billing"], ["policy", "Rental Policy"], ["compliance", "Compliance Documents"]] as const).map(([id, label]) => (
+        {([["plan", "Plan & Billing"], ["policy", "Rental Policy"], ["payouts", "Payouts"], ["compliance", "Compliance Documents"]] as const).map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)} aria-pressed={tab === id}
             className={`px-4 py-2.5 text-sm font-bold ${tab === id ? "text-blue-600 border-b-2 border-blue-600 -mb-px" : "text-slate-500 dark:text-slate-400"}`}>{label}</button>
         ))}
       </motion.div>
-      <motion.div variants={itemVariants}>{tab === "plan" ? <PlanTab /> : tab === "policy" ? <PolicyTab /> : <ComplianceTab />}</motion.div>
+      <motion.div variants={itemVariants}>{tab === "plan" ? <PlanTab /> : tab === "policy" ? <PolicyTab /> : tab === "payouts" ? <PayoutTab /> : <ComplianceTab />}</motion.div>
     </motion.div>
   );
 }

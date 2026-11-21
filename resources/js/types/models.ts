@@ -486,6 +486,12 @@ export interface OnlinePayment {
   message: string | null;
   receipt: string | null;
   booking?: { id: number; reference: string };
+  /** Admin listing only. */
+  dealer?: string | null;
+  /** A Payment was created for it. */
+  recorded: boolean;
+  /** Money arrived but couldn't go on the invoice. */
+  needs_attention: boolean;
   created_at: string;
   expires_at: string;
   completed_at: string | null;

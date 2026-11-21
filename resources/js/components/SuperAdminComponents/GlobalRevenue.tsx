@@ -1,6 +1,7 @@
 import { type Variants, motion } from "framer-motion";
 import { Table, Tr, Td } from "../Card";
 import LoadState from "../LoadState";
+import OnlinePaymentsPanel from "./OnlinePaymentsPanel";
 import { DollarSign, Wallet, ArrowRightLeft } from "lucide-react";
 import { useApi } from "@/lib/useApi";
 import { ksh, kshShort, longDate } from "@/lib/format";
@@ -82,6 +83,8 @@ export default function GlobalRevenue() {
           </Table>
         </LoadState>
       </motion.div>
+
+      <motion.div variants={itemVariants}><OnlinePaymentsPanel /></motion.div>
     </motion.div>
   );
 }

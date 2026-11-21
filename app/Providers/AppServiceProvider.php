@@ -3,6 +3,12 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\Payments\CardGateway;
+use App\Services\Payments\DarajaGateway;
+use App\Services\Payments\MpesaGateway;
+use App\Services\Payments\PaystackGateway;
+use App\Services\Payments\SimulatedCardGateway;
+use App\Services\Payments\SimulatedMpesaGateway;
 use App\Services\Sms\AfricasTalkingSmsSender;
 use App\Services\Sms\LogSmsSender;
 use App\Services\Sms\SmsSender;
@@ -34,6 +40,23 @@ class AppServiceProvider extends ServiceProvider
                 config('services.africastalking.sender_id') ?: null,
             )
             : new LogSmsSender);
+
+        // Online payments are simulated unless real providers are configured.
+        $this->app->singleton(MpesaGateway::class, fn () => config('services.mpesa.driver') === 'daraja'
+            ? new DarajaGateway(
+                (string) config('services.mpesa.environment'),
+                (string) config('services.mpesa.consumer_key'),
+                (string) config('services.mpesa.consumer_secret'),
+                (string) config('services.mpesa.shortcode'),
+                (string) config('services.mpesa.passkey'),
+                config('services.mpesa.callback_url') ?: url('/webhooks/mpesa/'.config('services.mpesa.callback_token')),
+                (string) config('services.mpesa.transaction_type'),
+                config('services.mpesa.till_number') ?: null,
+            )
+            : new SimulatedMpesaGateway);
+        $this->app->singleton(CardGateway::class, fn () => config('services.card.driver') === 'paystack'
+            ? new PaystackGateway((string) config('services.paystack.secret_key'), (string) config('services.paystack.currency'))
+            : new SimulatedCardGateway);
     }
 
     /**

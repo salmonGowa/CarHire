@@ -39,6 +39,15 @@ class FleetSeeder extends Seeder
             ['name' => 'Rift Valley Motors', 'city' => 'Nakuru', 'county' => 'Nakuru County', 'phone' => '+254 720 789 012', 'email' => 'admin@riftmotors.co.ke', 'tier' => 'silver', 'status' => DealerStatus::Suspended, 'notes' => 'Suspended pending compliance review.'],
         ])->mapWithKeys(fn (array $d) => [$d['name'] => Dealer::updateOrCreate(['name' => $d['name']], $d + ['status' => DealerStatus::Active])]);
 
+        // Demo payout destinations (made-up numbers). City Movers was changed today, so
+        // the payouts screen shows the "check before sending" warning; the rest have none yet.
+        $dealers['Swift Car Hire']->update(['payout_method' => 'bank', 'payout_bank_name' => 'Equity Bank', 'payout_bank_branch' => 'Upper Hill',
+            'payout_account_name' => 'Swift Car Hire Ltd', 'payout_account_number' => '0170299445566', 'payout_details_updated_at' => now()->subMonths(4)]);
+        $dealers['Premier Auto Group']->update(['payout_method' => 'mpesa', 'payout_mpesa_type' => 'paybill', 'payout_mpesa_number' => '522533',
+            'payout_mpesa_account' => 'PREMIER01', 'payout_account_name' => 'Premier Auto Group', 'payout_details_updated_at' => now()->subMonths(2)]);
+        $dealers['City Movers']->update(['payout_method' => 'mpesa', 'payout_mpesa_type' => 'till', 'payout_mpesa_number' => '8812345',
+            'payout_account_name' => 'City Movers', 'payout_details_updated_at' => now()->subHours(3)]);
+
         // [dealer, model, plate, type, rate, seats, transmission, fuel, image id, status]
         $fleet = [
             ['Swift Car Hire', 'Toyota Land Cruiser Prado', 'KDK 123X', 'SUV', 15000, 7, 'auto', 'diesel', '1594502184342-2e12f877aa73'],

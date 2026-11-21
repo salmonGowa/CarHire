@@ -1,6 +1,7 @@
 <?php
 
 use App\Services\BookingReminders;
+use App\Services\OnlinePayments;
 use App\Services\PlatformAlerts;
 use App\Services\SubscriptionBilling;
 use Illuminate\Foundation\Inspiring;
@@ -29,3 +30,10 @@ Artisan::command('drivefleet:send-reminders', function (BookingReminders $remind
 })->purpose('Text and email pickup, return and overdue reminders');
 
 Schedule::command('drivefleet:send-reminders')->everyFifteenMinutes()->withoutOverlapping();
+
+Artisan::command('drivefleet:reconcile-payments', function (OnlinePayments $payments) {
+    $r = $payments->reconcile();
+    $this->info("Checked {$r['checked']} pending online payments: {$r['succeeded']} paid, {$r['expired']} expired.");
+})->purpose('Settle M-PESA prompts and card checkouts whose callback never arrived');
+
+Schedule::command('drivefleet:reconcile-payments')->everyMinute()->withoutOverlapping();

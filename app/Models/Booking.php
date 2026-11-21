@@ -176,6 +176,11 @@ class Booking extends Model
         return $this->hasMany(BookingExtension::class)->latest('id');
     }
 
+    public function onlinePayments(): HasMany
+    {
+        return $this->hasMany(OnlinePayment::class);
+    }
+
     /** Deposit taken at handover that hasn't been applied or refunded yet. */
     public function depositHeld(): int
     {
